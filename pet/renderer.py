@@ -13,8 +13,8 @@ class Renderer(ABC):
         pass
 
     @abstractmethod
-    def show_thoughts(self, thoughts: dict[str, str]) -> None:
-        """What the pet is feeling this tick: {name: strength}."""
+    def show_thought(self, thought: str) -> None:
+        """What is on the pet's mind this tick."""
         pass
 
     @abstractmethod
@@ -50,9 +50,8 @@ class TextRenderer(Renderer):
             print("\033[2J\033[H", end="")  # clear screen, cursor to top-left
         print(f"\n--- Tick {tick} ---")
 
-    def show_thoughts(self, thoughts):
-        text = ", ".join(f"{name} ({level})" for name, level in thoughts.items()) or "none"
-        print(f"   thoughts: {text}")
+    def show_thought(self, thought):
+        print(f"   thought: {thought}")
 
     def show_action(self, pet_name, action, applied=True):
         print(f"\n🐾 {pet_name} decides to [{action.label}]")

@@ -1,4 +1,4 @@
-"""Main loop: stats -> (code) thoughts -> (LLM) action -> (code) update stats -> repeat"""
+"""Main loop: stats -> (code) thought -> (LLM) action -> (code) update stats -> repeat"""
 import argparse
 import textwrap
 import time
@@ -9,7 +9,7 @@ from pet.memory import Memory
 from pet.brain import GeminiBrain, MockBrain, build_prompt, parse
 from pet.renderer import TextRenderer
 from pet.state import PetState
-from pet.thoughts import current_thoughts, describe_change
+from pet.thoughts import current_thought
 
 MEMORY_SIZE = 10  # how many previous ticks the LLM is shown
 
@@ -74,18 +74,18 @@ def main() -> None:
             if late:
                 print(f"   ⏱️  the last tick took longer than {args.auto:g}s, running now")
 
-            # 1. Stats -> thoughts (code)
-            thoughts = current_thoughts(state)
-            ui.show_thoughts(thoughts)
+            # 1. Stats -> the one most urgent thought (code)
+            thought = current_thought(state)
+            ui.show_thought(thought)
 
             recalled = memory.recall()
             if args.debug:
                 print("   [debug] prompt sent to the LLM:")
-                print(textwrap.indent(build_prompt(thoughts, recalled), "      "))
+                print(textwrap.indent(build_prompt(thought, recalled), "      "))
 
-            # 2. Thoughts + memory -> action (LLM); no usable reply -> no action this tick
+            # 2. Thought + memory -> action (LLM); no usable reply -> no action this tick
             try:
-                raw = brain.decide(thoughts, recalled)
+                raw = brain.decide(thought, recalled)
             except Exception as e:  # API errors (network, key, quota, ...) shouldn't crash the program
                 print(f"   [LLM error] {type(e).__name__}: {str(e)[:150]}")
                 raw = ""
@@ -95,10 +95,10 @@ def main() -> None:
             # 3. Action -> stats (code)
             result = apply_action(state, action_name)
 
-            # 4. Remember what the action did to the pet's thoughts, and display
+            # 4. Remember how the action changed the pet's thought, and display
             if action_name:
                 label = action_name if result.applied else f"{action_name} (no effect)"
-                memory.add(label, describe_change(thoughts, current_thoughts(state)))
+                memory.add(label, f"{thought}>{current_thought(state)}")
                 ui.show_action(args.name, ACTIONS[action_name], result.applied)
             else:
                 ui.show_no_action(args.name, raw)

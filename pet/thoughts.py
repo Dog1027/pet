@@ -1,24 +1,25 @@
-"""Thoughts: what the pet is feeling right now, worked out by the program from its stats.
+"""Thoughts: the one thing on the pet's mind right now, worked out by the program from its stats.
 
-Flow:  stats -> (code) thoughts -> (LLM) action -> (code) stats change
+Flow:  stats -> (code) one thought -> (LLM) action -> (code) stats change
 
-The LLM never sees the numbers. It sees the current thoughts, each with a strength
-(low / medium / high), and picks an action.
+The LLM never sees the stats. It only sees the single most urgent thought and picks an action.
 
-To add a thought, write a function that returns its strength (or None when the pet
-doesn't feel it) and decorate it with @thought("name"):
+Each thought is a function that returns how urgent it is (0 = not felt, higher = more urgent).
+The program picks the most urgent one; if none is felt, the pet is DEFAULT_THOUGHT.
+To add a thought, write such a function and decorate it with @thought("name"):
 
     @thought("scared")
-    def scared(state: PetState) -> str | None:
-        return "high" if state.health < 10 else None
+    def scared(state: PetState) -> int:
+        return 100 if state.health < 10 else 0
 """
 from typing import Callable
 
 from .state import PetState
 
-ThoughtFn = Callable[[PetState], str | None]
+ThoughtFn = Callable[[PetState], int]
 
-THOUGHTS: dict[str, ThoughtFn] = {}  # in the order they are listed to the LLM
+THOUGHTS: dict[str, ThoughtFn] = {}  # on a tie, the one registered first wins
+DEFAULT_THOUGHT = "content"          # when no thought is felt
 
 
 def thought(name: str) -> Callable[[ThoughtFn], ThoughtFn]:
@@ -31,67 +32,54 @@ def thought(name: str) -> Callable[[ThoughtFn], ThoughtFn]:
     return register
 
 
-def strength(value: int) -> str | None:
-    """How strongly a need is felt, from a 0-100 stat where higher is better."""
-    if value < 20:
-        return "high"
-    if value < 40:
-        return "medium"
-    if value < 60:
-        return "low"
-    return None
+FELT_BELOW = 60  # a need is only felt once its stat drops below this
+
+
+def need(value: int) -> int:
+    """Urgency of a need, from a 0-100 stat where higher is better: the lower the stat,
+    the more urgent; 0 while the stat is still FELT_BELOW or above."""
+    return 100 - value if value < FELT_BELOW else 0
 
 
 # ---------------------------------------------------------------- thoughts
 
 @thought("hungry")
-def hungry(state: PetState) -> str | None:
-    return strength(state.fullness)
+def hungry(state: PetState) -> int:
+    return need(state.fullness)
 
 
 @thought("tired")
-def tired(state: PetState) -> str | None:
-    return strength(state.energy)
+def tired(state: PetState) -> int:
+    return need(state.energy)
 
 
 @thought("bored")
-def bored(state: PetState) -> str | None:
-    return strength(state.mood)
+def bored(state: PetState) -> int:
+    return need(state.mood)
 
 
 @thought("dirty")
-def dirty(state: PetState) -> str | None:
-    return strength(state.cleanliness)
+def dirty(state: PetState) -> int:
+    return need(state.cleanliness)
 
 
 @thought("sick")
-def sick(state: PetState) -> str | None:
-    return strength(state.health)
+def sick(state: PetState) -> int:
+    return need(state.health)
 
 
 @thought("lonely")
-def lonely(state: PetState) -> str | None:
-    return strength(state.social)
+def lonely(state: PetState) -> int:
+    return need(state.social)
 
 
-# ---------------------------------------------------------------- current thoughts / changes
+# ---------------------------------------------------------------- current thought
 
-def current_thoughts(state: PetState) -> dict[str, str]:
-    """The thoughts the pet has right now: {name: strength}. Thoughts it doesn't have are left out."""
-    out = {}
+def current_thought(state: PetState) -> str:
+    """The single most urgent thought right now, or DEFAULT_THOUGHT if nothing is felt."""
+    best, best_urgency = DEFAULT_THOUGHT, 0
     for name, fn in THOUGHTS.items():
-        level = fn(state)
-        if level:
-            out[name] = level
-    return out
-
-
-def describe_change(before: dict[str, str], after: dict[str, str]) -> str:
-    """How the thoughts changed over a tick, e.g. "hungry high>none,dirty none>low".
-    This is the result text stored in the pet's memory."""
-    changes = [
-        f"{name} {before.get(name, 'none')}>{after.get(name, 'none')}"
-        for name in THOUGHTS
-        if before.get(name) != after.get(name)
-    ]
-    return ",".join(changes) if changes else "no change"
+        urgency = fn(state)
+        if urgency > best_urgency:
+            best, best_urgency = name, urgency
+    return best

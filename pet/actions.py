@@ -1,6 +1,6 @@
 """Actions: the functions here change the stats.
 
-The LLM picks one of these actions each tick, based on the pet's thoughts and memory.
+The LLM picks one of these actions each tick, based on the pet's current thought and memory.
 
 To add an action, write a function and decorate it with @action(...).
 The LLM's list of choices picks it up automatically.
