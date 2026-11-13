@@ -1,10 +1,14 @@
 """Main loop: stats -> (code) thought -> (LLM) action -> (code) update stats -> repeat"""
 import argparse
+import queue
+import sys
+import threading
 import textwrap
 import time
 
 from pet import config
 from pet.actions import ACTIONS, apply_action
+from pet.interactions import INTERACTIONS, apply_interaction
 from pet.memory import Memory
 from pet.brain import GeminiBrain, MockBrain, build_prompt, parse
 from pet.renderer import TextRenderer
@@ -43,31 +47,77 @@ def main() -> None:
         models = "mock" if args.mock else f"model={cfg.gemini.model}, fallbacks={cfg.gemini.fallback_models}"
         print(f"(debug mode: {models})")
     if args.auto:
-        print(f"(auto mode: a tick every {args.auto:g}s, Ctrl+C to quit)")
+        print(f"(auto mode: a tick every {args.auto:g}s)")
     else:
-        print("(manual mode: press Enter for the next tick, type q to quit)")
+        print("(manual mode: press Enter for the next tick)")
     ui.show_state(state, {})
 
     tick = 0
     memory = Memory(MEMORY_SIZE, cfg.memory)
     next_time = time.monotonic()
+
+    # Input area: a background thread reads the lines the owner types
+    typed: queue.Queue[str | None] = queue.Queue()  # None = stdin closed
+
+    def read_input() -> None:
+        for line in sys.stdin:
+            typed.put(line.strip().lower())
+        typed.put(None)
+
+    threading.Thread(target=read_input, daemon=True).start()
+
+    def handle(cmd: str) -> None:
+        """Apply an owner interaction typed in the input area."""
+        item = INTERACTIONS.get(cmd)
+        if item is None:
+            if cmd:
+                print(f"   (unknown input: {cmd!r})")
+            return
+        before = current_thought(state)
+        delta = apply_interaction(state, item)
+        memory.add(f"owner_{item.name}", f"{before}>{current_thought(state)}")
+        ui.show_interaction(args.name, item, delta)
+
+    def wait_for_tick() -> bool:
+        """Wait until the next tick is due, handling input meanwhile. False = quit."""
+        nonlocal next_time
+        stdin_open = True
+        while True:
+            if args.auto:
+                remaining = next_time - time.monotonic()
+                if remaining <= 0:
+                    break
+            else:
+                remaining = None  # manual mode: wait for Enter
+            if not stdin_open:
+                if not args.auto:
+                    return False
+                time.sleep(remaining)
+                break
+            ui.show_input_area(INTERACTIONS.values(), manual=not args.auto)
+            try:
+                cmd = typed.get(timeout=remaining)
+            except queue.Empty:
+                break
+            if cmd is None:
+                stdin_open = False
+            elif cmd == "q":
+                return False
+            elif cmd == "" and not args.auto:
+                break  # Enter: next tick
+            else:
+                handle(cmd)
+        if args.auto:
+            next_time = max(next_time, time.monotonic() - args.auto) + args.auto
+        return True
+
     try:
         while args.ticks == 0 or tick < args.ticks:
-            late = False
-            if args.auto:
-                # Fixed rate: measured from the *start* of the previous tick, so LLM time is included
-                wait = next_time - time.monotonic()
-                if wait > 0:
-                    time.sleep(wait)
-                elif tick > 0:
-                    late = True
-                next_time = max(next_time, time.monotonic() - args.auto) + args.auto
-            else:
-                try:
-                    if input("\n[Enter] next tick / q to quit > ").strip().lower() == "q":
-                        break
-                except EOFError:
-                    break
+            started_waiting = time.monotonic()
+            if not wait_for_tick():
+                break
+            # In auto mode, a tick that starts without any wait means the last one ran over
+            late = bool(args.auto) and tick > 0 and time.monotonic() - started_waiting < 0.001
 
             tick += 1
             ui.begin_tick(tick)  # normal mode clears the screen here

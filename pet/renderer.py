@@ -3,7 +3,10 @@ The main loop doesn't need to change."""
 import sys
 from abc import ABC, abstractmethod
 
+from typing import Iterable
+
 from .actions import Action
+from .interactions import Interaction
 from .state import PetState
 
 
@@ -23,6 +26,14 @@ class Renderer(ABC):
 
     @abstractmethod
     def show_state(self, state: PetState, delta: dict[str, int]) -> None: ...
+
+    def show_interaction(self, pet_name: str, item: Interaction, delta: dict[str, int]) -> None:
+        """The owner did something to the pet; delta is the actual stat change."""
+        pass
+
+    def show_input_area(self, items: Iterable[Interaction], manual: bool) -> None:
+        """Show what the owner can type. manual=True: Enter runs the next tick."""
+        pass
 
     @abstractmethod
     def show_no_action(self, pet_name: str, raw: str) -> None:
@@ -59,6 +70,16 @@ class TextRenderer(Renderer):
             print("   ...but it has no effect this time")
         if self.debug and not applied:
             print(f"   [debug] condition {action.condition.__name__} returned False")
+
+    def show_interaction(self, pet_name, item, delta):
+        changes = ", ".join(f"{k} {v:+d}" for k, v in delta.items()) or "no change"
+        print(f"   🧑 You [{item.label}] {pet_name}: {changes}")
+
+    def show_input_area(self, items, manual):
+        options = [f"[{i.key}] {i.label}" for i in items] + ["[q] Quit"]
+        if manual:
+            options.insert(0, "[Enter] Next tick")
+        print("\n" + "  ".join(options) + " > ", end="", flush=True)
 
     def show_no_action(self, pet_name, raw):
         print(f"\n🐾 {pet_name} does nothing (unusable reply: {raw.strip()!r})")
