@@ -10,7 +10,7 @@ from pet.renderer import TextRenderer
 from pet.state import PetState
 from pet.thoughts import parse, resolve
 
-MEMORY_SIZE = 3  # how many previous actions the LLM is shown
+MEMORY_SIZE = 10  # how many previous actions the LLM is shown
 
 
 def main() -> None:
