@@ -84,9 +84,8 @@ def main() -> None:
         stdin_open = True
         while True:
             if args.auto:
-                remaining = next_time - time.monotonic()
-                if remaining <= 0:
-                    break
+                # 0 when the tick is already due: still handle input typed during the last tick
+                remaining = max(next_time - time.monotonic(), 0)
             else:
                 remaining = None  # manual mode: wait for Enter
             if not stdin_open:
@@ -94,7 +93,8 @@ def main() -> None:
                     return False
                 time.sleep(remaining)
                 break
-            ui.show_input_area(INTERACTIONS.values(), manual=not args.auto)
+            if remaining != 0:
+                ui.show_input_area(INTERACTIONS.values(), manual=not args.auto)
             try:
                 cmd = typed.get(timeout=remaining)
             except queue.Empty:
