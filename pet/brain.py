@@ -1,8 +1,7 @@
 """Stats -> thought: handled by the LLM.
 
-A Brain only takes the state and returns the LLM's raw text. It makes no judgement;
-checking whether the output is correct is the supervisor's job, and turning the
-thought into an action is the decision tree's job (thoughts.py).
+A Brain only takes the state and returns the LLM's raw text. Turning that into a
+thought and then an action is done in thoughts.py.
 """
 import json
 import random
@@ -11,7 +10,7 @@ from typing import Sequence
 
 from .config import GeminiConfig
 from .state import PetState
-from .thoughts import THOUGHTS, safe_thought
+from .thoughts import THOUGHTS
 
 SYSTEM_PROMPT = """You are a virtual pet. Given your stats (0-100, higher is better) and your recent actions, pick the one thought that fits best.
 
@@ -25,21 +24,17 @@ def build_system_prompt() -> str:
     return SYSTEM_PROMPT.format(thoughts=thoughts)
 
 
-def build_user_prompt(state: PetState, feedback: str | None = None,
-                      memory: Sequence[str] = ()) -> str:
+def build_user_prompt(state: PetState, memory: Sequence[str] = ()) -> str:
     """memory: what the pet did on the previous ticks, oldest first."""
     msg = "Stats: " + json.dumps(state.to_dict())
     if memory:
         msg += "\nRecent actions (oldest first): " + ", ".join(memory)
-    if feedback:
-        msg += f"\n\nYour previous reply was rejected: {feedback}\nPick again."
     return msg
 
 
 class Brain(ABC):
     @abstractmethod
-    def decide(self, state: PetState, feedback: str | None = None,
-               memory: Sequence[str] = ()) -> str:
+    def decide(self, state: PetState, memory: Sequence[str] = ()) -> str:
         """Return the LLM's raw output string."""
 
 
@@ -50,7 +45,7 @@ class GeminiBrain(Brain):
 
         # When api_key is None the SDK reads GEMINI_API_KEY / GOOGLE_API_KEY instead.
         # The SDK's built-in retries are turned off (by default they silently retry for a long time);
-        # retries are handled by the supervisor loop and the fallback models.
+        # a busy model is handled by the fallback models instead.
         self.client = genai.Client(
             api_key=cfg.api_key,
             http_options=types.HttpOptions(
@@ -63,8 +58,7 @@ class GeminiBrain(Brain):
         self.system = build_system_prompt()
         self.last_model: str | None = None  # model that actually answered this tick
 
-    def decide(self, state: PetState, feedback: str | None = None,
-               memory: Sequence[str] = ()) -> str:
+    def decide(self, state: PetState, memory: Sequence[str] = ()) -> str:
         """Try the main model, then the fallbacks; switch only on busy / timeout, re-raise anything else."""
         error: Exception | None = None
         self.last_model = None
@@ -73,7 +67,7 @@ class GeminiBrain(Brain):
                 interaction = self.client.interactions.create(
                     model=model,
                     system_instruction=self.system,
-                    input=build_user_prompt(state, feedback, memory),
+                    input=build_user_prompt(state, memory),
                     generation_config={"thinking_level": self.thinking_level},
                     store=False,  # each tick is independent; no need to keep the conversation server-side
                 )
@@ -84,7 +78,7 @@ class GeminiBrain(Brain):
                 error = e
                 continue
             self.last_model = model
-            return interaction.output_text or ""  # an empty string is rejected by the supervisor
+            return interaction.output_text or ""
         raise RuntimeError("all models are unavailable") from error
 
 
@@ -102,18 +96,9 @@ def _short(e: Exception) -> str:
 
 
 class MockBrain(Brain):
-    """Fake brain that doesn't call any API, for testing the loop and the supervisor.
-    It deliberately produces some bad outputs."""
+    """Fake brain that doesn't call any API: picks a random thought. For testing the loop."""
 
     last_model = "mock"
 
-    def decide(self, state: PetState, feedback: str | None = None,
-               memory: Sequence[str] = ()) -> str:
-        r = random.random()
-        if feedback is None and r < 0.10:
-            return "I think it should go eat"   # extra text instead of just a name
-        if feedback is None and r < 0.20:
-            return "fly"                        # not in the thought list
-        if feedback is None and r < 0.30:
-            return "eat"                        # may not make sense
-        return safe_thought(state)
+    def decide(self, state: PetState, memory: Sequence[str] = ()) -> str:
+        return random.choice(list(THOUGHTS))

@@ -1,4 +1,4 @@
-"""Main loop: stats -> (LLM) thought -> (supervisor) -> (decision tree) action -> (code) update stats -> repeat"""
+"""Main loop: stats -> (LLM) thought -> (decision tree) action -> (code) update stats -> repeat"""
 import argparse
 import time
 from collections import deque
@@ -8,8 +8,7 @@ from pet.actions import ACTIONS, apply_action
 from pet.brain import GeminiBrain, MockBrain
 from pet.renderer import TextRenderer
 from pet.state import PetState
-from pet.supervisor import Supervisor
-from pet.thoughts import resolve, safe_thought
+from pet.thoughts import parse, resolve
 
 MEMORY_SIZE = 3  # how many previous actions the LLM is shown
 
@@ -20,7 +19,6 @@ def main() -> None:
     p.add_argument("--ticks", type=int, default=10, help="number of ticks to run (0 = forever)")
     p.add_argument("--auto", type=float, metavar="SECONDS",
                    help="auto mode: run a tick every SECONDS seconds; without it, manual mode (press Enter)")
-    p.add_argument("--retries", type=int, default=2, help="retries when the LLM's output is rejected")
     p.add_argument("--mock", action="store_true", help="use a fake brain instead of calling the API")
     p.add_argument("--config", default=str(config.DEFAULT_PATH), help="path to the config file")
     p.add_argument("--model", help="override the model in config.toml")
@@ -34,7 +32,6 @@ def main() -> None:
 
     state = PetState()
     brain = MockBrain() if args.mock else GeminiBrain(cfg)
-    supervisor = Supervisor()
     ui = TextRenderer(args.debug)
 
     if args.auto is not None and args.auto <= 0:
@@ -79,36 +76,27 @@ def main() -> None:
             if args.debug:
                 print(f"   [debug] memory sent to the LLM: {list(memory)}")
 
-            # 1. Stats -> thought (LLM), checked by the supervisor; if rejected, ask again with feedback
-            feedback, verdict = None, None
-            for attempt in range(1, args.retries + 2):
-                try:
-                    raw = brain.decide(state, feedback, memory)
-                except Exception as e:  # API errors (network, key, quota, ...) shouldn't crash the program
-                    print(f"   [LLM error] {type(e).__name__}: {str(e)[:150]}")
-                    raw = ""  # the supervisor rejects it; retry or fall back as usual
-                ui.show_debug(attempt, getattr(brain, "last_model", None), raw)
-                verdict = supervisor.review(tick, attempt, raw, state)
-                ui.show_supervisor(attempt, verdict.ok, verdict.errors, verdict.warnings)
-                if verdict.ok:
-                    break
-                feedback = verdict.feedback()
+            # 1. Stats -> thought (LLM)
+            try:
+                raw = brain.decide(state, memory)
+            except Exception as e:  # API errors (network, key, quota, ...) shouldn't crash the program
+                print(f"   [LLM error] {type(e).__name__}: {str(e)[:150]}")
+                raw = ""
+            ui.show_debug(getattr(brain, "last_model", None), raw)
+            thought_name = parse(raw)
 
-            if verdict.ok:
-                thought_name, used_fallback = verdict.thought, False
-            else:
-                # The LLM kept getting it wrong: use the thought about the lowest stat
-                thought_name, used_fallback = safe_thought(state), True
-
-            # 2. Thought -> action (decision tree, code)
-            action_name = resolve(thought_name, state)
+            # 2. Thought -> action (decision tree, code); no usable thought -> no action this tick
+            action_name = resolve(thought_name, state) if thought_name else None
 
             # 3. Action -> stats (code)
             result = apply_action(state, action_name)
-            memory.append(action_name if result.applied else f"{action_name} (no effect)")
 
             # 4. Display
-            ui.show_action(args.name, ACTIONS[action_name], thought_name, used_fallback, result.applied)
+            if action_name:
+                memory.append(action_name if result.applied else f"{action_name} (no effect)")
+                ui.show_action(args.name, ACTIONS[action_name], thought_name, result.applied)
+            else:
+                ui.show_no_action(args.name, raw)
             ui.show_state(state, result.delta)
 
             if state.health == 0:
@@ -116,9 +104,6 @@ def main() -> None:
                 break
     except KeyboardInterrupt:
         pass
-
-    print(f"\n=== Supervisor stats: LLM pass rate {supervisor.accuracy:.0%}"
-          f" ({supervisor.passed}/{supervisor.total}), details in {supervisor.log_path} ===")
 
 
 if __name__ == "__main__":

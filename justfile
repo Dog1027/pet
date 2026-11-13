@@ -22,14 +22,6 @@ auto seconds="5" *args:
 debug seconds="5" *args:
     uv run main.py --debug --auto {{seconds}} --ticks 0 {{args}}
 
-# Test with a fake brain, no API calls (auto mode, default 1s)
+# Test with a fake brain (random thoughts), no API calls (auto mode, default 1s)
 mock seconds="1" *args:
     uv run main.py --mock --auto {{seconds}} {{args}}
-
-# Show the last N supervisor log entries
-log n="20":
-    tail -n {{n}} logs/supervisor.jsonl
-
-# Delete the supervisor log
-clean-log:
-    rm -rf logs

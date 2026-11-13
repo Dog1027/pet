@@ -129,15 +129,18 @@ def idle(state: PetState) -> None:
 
 # ---------------------------------------------------------------- apply
 
-def apply_action(state: PetState, action_name: str) -> ActionResult:
-    """Check the condition, run the action function if allowed, then every per-tick rule in order."""
+def apply_action(state: PetState, action_name: str | None) -> ActionResult:
+    """Check the condition, run the action function if allowed, then every per-tick rule in order.
+    action_name=None means no action this tick (e.g. the LLM gave no usable reply): only the rules run."""
     from .rules import RULES  # avoid a circular import
 
-    act = ACTIONS[action_name]
     before = state.to_dict()
-    applied = act.condition(state)
-    if applied:
-        act.fn(state)
+    applied = False
+    if action_name is not None:
+        act = ACTIONS[action_name]
+        applied = act.condition(state)
+        if applied:
+            act.fn(state)
     for rule in RULES:  # time passes either way
         rule(state)
     after = state.to_dict()
