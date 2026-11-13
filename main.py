@@ -97,7 +97,7 @@ def main() -> None:
             # 4. Display
             if action_name:
                 label = action_name if result.applied else f"{action_name} (no effect)"
-                memory.add(f"{label}|{result.summary()}")
+                memory.add(label, result.summary())
                 ui.show_action(args.name, ACTIONS[action_name], thought_name, result.applied)
             else:
                 ui.show_no_action(args.name, raw)
