@@ -19,7 +19,7 @@ class GeminiConfig:
 class MemoryConfig:
     time_scale: float = 1.0   # timestamps shown to the LLM = real seconds since the action * this
     fade_start: float = 0.5   # entries past this share of the memory start losing characters
-    fade_max: float = 0.8     # share of characters blanked in the oldest entry
+    fade_max: float = 0.8     # share of characters deleted from the oldest entry
 
 
 @dataclass
