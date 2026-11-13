@@ -1,0 +1,10 @@
+# Secret settings
+config.toml
+
+# Python / uv
+.venv/
+__pycache__/
+*.pyc
+
+# Run logs
+logs/

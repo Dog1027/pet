@@ -1,0 +1,13 @@
+# Copy to config.toml and fill in your key: just init (or cp config.example.toml config.toml)
+# config.toml is in .gitignore and won't be committed
+
+[gemini]
+# Leave empty to read the GEMINI_API_KEY / GOOGLE_API_KEY environment variable instead
+api_key = ""
+model = "gemini-3.5-flash-lite"
+# If the main model is busy (429/5xx) or times out, try these models in order
+fallback_models = ["gemini-3.8-flash"]
+# Thinking level: low / medium / high
+thinking_level = "low"
+# Max seconds to wait per request
+timeout = 20
