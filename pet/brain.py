@@ -12,9 +12,7 @@ from .config import GeminiConfig
 from .state import PetState
 from .thoughts import THOUGHTS
 
-SYSTEM_PROMPT = """You are a virtual pet. Given your stats (0-100, higher is better) and your recent actions, pick the one thought that fits best.
-
-Thoughts: {thoughts}
+SYSTEM_PROMPT = """Thoughts: {thoughts}
 
 Reply with only the thought's name, nothing else."""
 
