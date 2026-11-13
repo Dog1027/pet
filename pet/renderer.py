@@ -13,7 +13,9 @@ class Renderer(ABC):
         pass
 
     @abstractmethod
-    def show_action(self, pet_name: str, action: Action, reason: str, fallback: bool) -> None: ...
+    def show_action(self, pet_name: str, action: Action, reason: str, fallback: bool,
+                    applied: bool = True) -> None:
+        """applied=False: the action's condition blocked its effect this tick."""
 
     @abstractmethod
     def show_state(self, state: PetState, delta: dict[str, int]) -> None: ...
@@ -43,9 +45,13 @@ class TextRenderer(Renderer):
             print("\033[2J\033[H", end="")  # clear screen, cursor to top-left
         print(f"\n--- Tick {tick} ---")
 
-    def show_action(self, pet_name, action, reason, fallback):
+    def show_action(self, pet_name, action, reason, fallback, applied=True):
         tag = " (decided by the supervisor)" if fallback else ""
         print(f"\n🐾 {pet_name} decides to [{action.label}]{tag}")
+        if not applied:
+            print("   ...but it has no effect this time")
+        if self.debug and not applied:
+            print(f"   [debug] condition {action.condition.__name__} returned False")
         if self.debug and reason:
             print(f"   [debug] reason: {reason}")
 

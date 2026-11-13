@@ -93,11 +93,11 @@ def main() -> None:
                 action_name, reason, used_fallback = safe_action(state), "", True
 
             # 2. Action -> stats (code)
-            delta = apply_action(state, action_name)
+            result = apply_action(state, action_name)
 
             # 3. Display
-            ui.show_action(args.name, ACTIONS[action_name], reason, used_fallback)
-            ui.show_state(state, delta)
+            ui.show_action(args.name, ACTIONS[action_name], reason, used_fallback, result.applied)
+            ui.show_state(state, result.delta)
 
             if state.health == 0:
                 print(f"\n💀 {args.name} has fallen ill...")
