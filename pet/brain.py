@@ -1,46 +1,34 @@
-"""State -> action: handled by the LLM.
+"""Stats -> thought: handled by the LLM.
 
 A Brain only takes the state and returns the LLM's raw text. It makes no judgement;
-checking whether the output is correct is the supervisor's job.
+checking whether the output is correct is the supervisor's job, and turning the
+thought into an action is the decision tree's job (thoughts.py).
 """
 import json
 import random
 from abc import ABC, abstractmethod
 
-from .actions import ACTIONS, safe_action
 from .config import GeminiConfig
-from .state import STAT_DESCRIPTIONS, PetState
+from .state import PetState
+from .thoughts import THOUGHTS, safe_thought
 
-SYSTEM_PROMPT = """You are the brain of a virtual pet. Based on the pet's six current stats (0-100, higher is better), choose the single most sensible next action.
+SYSTEM_PROMPT = """You are a virtual pet. Given your stats (0-100, higher is better), pick the one thought that fits best.
 
-Stats:
-{stats}
+Thoughts:
+{thoughts}
 
-Available actions (choose only from these, using the exact name):
-{actions}
-
-Output only one JSON object and nothing else:
-{output_format}"""
-
-# Normal runs only need the action; debug mode also asks for a reason
-OUTPUT_FORMAT = '{"action": "<action name>"}'
-OUTPUT_FORMAT_DEBUG = '{"action": "<action name>", "reason": "<one short sentence>"}'
+Reply with only the thought's name, nothing else."""
 
 
-def build_system_prompt(debug: bool = False) -> str:
-    stats = "\n".join(f"- {k}: {v}" for k, v in STAT_DESCRIPTIONS.items())
-    actions = "\n".join(
-        f"- {a.name} ({a.label}): {a.description}; effect approx. {a.preview()}"
-        for a in ACTIONS.values()
-    )
-    output_format = OUTPUT_FORMAT_DEBUG if debug else OUTPUT_FORMAT
-    return SYSTEM_PROMPT.format(stats=stats, actions=actions, output_format=output_format)
+def build_system_prompt() -> str:
+    thoughts = "\n".join(f"- {t.name}: {t.description}" for t in THOUGHTS.values())
+    return SYSTEM_PROMPT.format(thoughts=thoughts)
 
 
 def build_user_prompt(state: PetState, feedback: str | None = None) -> str:
-    msg = "Current stats: " + json.dumps(state.to_dict())
+    msg = json.dumps(state.to_dict())
     if feedback:
-        msg += f"\n\nYour previous output was rejected by the supervisor. Reason: {feedback}\nPlease choose again."
+        msg += f"\n\nYour previous reply was rejected: {feedback}\nPick again."
     return msg
 
 
@@ -51,7 +39,7 @@ class Brain(ABC):
 
 
 class GeminiBrain(Brain):
-    def __init__(self, cfg: GeminiConfig, debug: bool = False):
+    def __init__(self, cfg: GeminiConfig):
         from google import genai  # lazy import so mock mode doesn't load the SDK
         from google.genai import types
 
@@ -67,7 +55,7 @@ class GeminiBrain(Brain):
         )
         self.models = [cfg.model, *cfg.fallback_models]
         self.thinking_level = cfg.thinking_level
-        self.system = build_system_prompt(debug)
+        self.system = build_system_prompt()
         self.last_model: str | None = None  # model that actually answered this tick
 
     def decide(self, state: PetState, feedback: str | None = None) -> str:
@@ -111,21 +99,14 @@ class MockBrain(Brain):
     """Fake brain that doesn't call any API, for testing the loop and the supervisor.
     It deliberately produces some bad outputs."""
 
-    def __init__(self, debug: bool = False):
-        self.debug = debug
-        self.last_model = "mock"
+    last_model = "mock"
 
     def decide(self, state: PetState, feedback: str | None = None) -> str:
         r = random.random()
         if feedback is None and r < 0.10:
-            return "I think it should go eat"   # not JSON
+            return "I think it should go eat"   # extra text instead of just a name
         if feedback is None and r < 0.20:
-            return self._out("fly", "wants to fly")      # action doesn't exist
+            return "fly"                        # not in the thought list
         if feedback is None and r < 0.30:
-            return self._out("eat", "whatever")          # may not make sense
-        pick = safe_action(state)
-        return self._out(pick, f"restore {ACTIONS[pick].restores}")
-
-    def _out(self, action: str, reason: str) -> str:
-        obj = {"action": action, "reason": reason} if self.debug else {"action": action}
-        return json.dumps(obj)
+            return "eat"                        # may not make sense
+        return safe_thought(state)

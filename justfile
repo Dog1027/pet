@@ -18,7 +18,7 @@ run *args:
 auto seconds="5" *args:
     uv run main.py --auto {{seconds}} --ticks 0 {{args}}
 
-# Debug mode: LLM gives a reason, raw output is shown (auto mode, default 5s)
+# Debug mode: shows the raw LLM output and the thought -> action step (auto mode, default 5s)
 debug seconds="5" *args:
     uv run main.py --debug --auto {{seconds}} --ticks 0 {{args}}
 

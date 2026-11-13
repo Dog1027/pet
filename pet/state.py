@@ -3,16 +3,6 @@ from dataclasses import dataclass, asdict, fields
 
 STAT_MIN, STAT_MAX = 0, 100
 
-# Stat name -> description (also included in the LLM prompt)
-STAT_DESCRIPTIONS = {
-    "fullness": "how full the pet is (low = very hungry)",
-    "energy": "energy level (low = very tired)",
-    "mood": "mood (low = unhappy)",
-    "cleanliness": "cleanliness (low = very dirty)",
-    "health": "health (low = sick)",
-    "social": "social needs met (low = very lonely)",
-}
-
 
 def clamp(v: float) -> int:
     return int(max(STAT_MIN, min(STAT_MAX, round(v))))

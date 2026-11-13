@@ -1,13 +1,14 @@
-"""Main loop: stats -> (LLM) action -> (supervisor) -> (code) update stats -> repeat"""
+"""Main loop: stats -> (LLM) thought -> (supervisor) -> (decision tree) action -> (code) update stats -> repeat"""
 import argparse
 import time
 
 from pet import config
-from pet.actions import ACTIONS, apply_action, safe_action
+from pet.actions import ACTIONS, apply_action
 from pet.brain import GeminiBrain, MockBrain
 from pet.renderer import TextRenderer
 from pet.state import PetState
 from pet.supervisor import Supervisor
+from pet.thoughts import resolve, safe_thought
 
 
 def main() -> None:
@@ -21,7 +22,7 @@ def main() -> None:
     p.add_argument("--config", default=str(config.DEFAULT_PATH), help="path to the config file")
     p.add_argument("--model", help="override the model in config.toml")
     p.add_argument("--debug", action="store_true",
-                   help="debug mode: ask the LLM for a reason and show its raw output")
+                   help="debug mode: show the LLM's raw output and the thought -> action step")
     args = p.parse_args()
 
     cfg = config.load(args.config)
@@ -29,8 +30,8 @@ def main() -> None:
         cfg.model = args.model
 
     state = PetState()
-    brain = MockBrain(args.debug) if args.mock else GeminiBrain(cfg, args.debug)
-    supervisor = Supervisor(debug=args.debug)
+    brain = MockBrain() if args.mock else GeminiBrain(cfg)
+    supervisor = Supervisor()
     ui = TextRenderer(args.debug)
 
     if args.auto is not None and args.auto <= 0:
@@ -71,7 +72,7 @@ def main() -> None:
             if late:
                 print(f"   ⏱️  the last tick took longer than {args.auto:g}s, running now")
 
-            # 1. Stats -> action (LLM), checked by the supervisor; if rejected, ask again with feedback
+            # 1. Stats -> thought (LLM), checked by the supervisor; if rejected, ask again with feedback
             feedback, verdict = None, None
             for attempt in range(1, args.retries + 2):
                 try:
@@ -87,16 +88,19 @@ def main() -> None:
                 feedback = verdict.feedback()
 
             if verdict.ok:
-                action_name, reason, used_fallback = verdict.action, verdict.reason, False
+                thought_name, used_fallback = verdict.thought, False
             else:
-                # The LLM kept getting it wrong: use the rule that restores the lowest stat
-                action_name, reason, used_fallback = safe_action(state), "", True
+                # The LLM kept getting it wrong: use the thought about the lowest stat
+                thought_name, used_fallback = safe_thought(state), True
 
-            # 2. Action -> stats (code)
+            # 2. Thought -> action (decision tree, code)
+            action_name = resolve(thought_name, state)
+
+            # 3. Action -> stats (code)
             result = apply_action(state, action_name)
 
-            # 3. Display
-            ui.show_action(args.name, ACTIONS[action_name], reason, used_fallback, result.applied)
+            # 4. Display
+            ui.show_action(args.name, ACTIONS[action_name], thought_name, used_fallback, result.applied)
             ui.show_state(state, result.delta)
 
             if state.health == 0:
