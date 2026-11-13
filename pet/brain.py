@@ -15,14 +15,13 @@ from .thoughts import THOUGHTS, safe_thought
 
 SYSTEM_PROMPT = """You are a virtual pet. Given your stats (0-100, higher is better) and your recent actions, pick the one thought that fits best.
 
-Thoughts:
-{thoughts}
+Thoughts: {thoughts}
 
 Reply with only the thought's name, nothing else."""
 
 
 def build_system_prompt() -> str:
-    thoughts = "\n".join(f"- {t.name}: {t.description}" for t in THOUGHTS.values())
+    thoughts = ", ".join(THOUGHTS)
     return SYSTEM_PROMPT.format(thoughts=thoughts)
 
 
