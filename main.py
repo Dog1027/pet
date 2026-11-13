@@ -1,6 +1,7 @@
 """Main loop: stats -> (LLM) thought -> (supervisor) -> (decision tree) action -> (code) update stats -> repeat"""
 import argparse
 import time
+from collections import deque
 
 from pet import config
 from pet.actions import ACTIONS, apply_action
@@ -9,6 +10,8 @@ from pet.renderer import TextRenderer
 from pet.state import PetState
 from pet.supervisor import Supervisor
 from pet.thoughts import resolve, safe_thought
+
+MEMORY_SIZE = 3  # how many previous actions the LLM is shown
 
 
 def main() -> None:
@@ -48,6 +51,7 @@ def main() -> None:
     ui.show_state(state, {})
 
     tick = 0
+    memory: deque[str] = deque(maxlen=MEMORY_SIZE)  # recent actions, oldest first
     next_time = time.monotonic()
     try:
         while args.ticks == 0 or tick < args.ticks:
@@ -72,11 +76,14 @@ def main() -> None:
             if late:
                 print(f"   ⏱️  the last tick took longer than {args.auto:g}s, running now")
 
+            if args.debug:
+                print(f"   [debug] memory sent to the LLM: {list(memory)}")
+
             # 1. Stats -> thought (LLM), checked by the supervisor; if rejected, ask again with feedback
             feedback, verdict = None, None
             for attempt in range(1, args.retries + 2):
                 try:
-                    raw = brain.decide(state, feedback)
+                    raw = brain.decide(state, feedback, memory)
                 except Exception as e:  # API errors (network, key, quota, ...) shouldn't crash the program
                     print(f"   [LLM error] {type(e).__name__}: {str(e)[:150]}")
                     raw = ""  # the supervisor rejects it; retry or fall back as usual
@@ -98,6 +105,7 @@ def main() -> None:
 
             # 3. Action -> stats (code)
             result = apply_action(state, action_name)
+            memory.append(action_name if result.applied else f"{action_name} (no effect)")
 
             # 4. Display
             ui.show_action(args.name, ACTIONS[action_name], thought_name, used_fallback, result.applied)

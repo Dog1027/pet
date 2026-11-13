@@ -7,12 +7,13 @@ thought into an action is the decision tree's job (thoughts.py).
 import json
 import random
 from abc import ABC, abstractmethod
+from typing import Sequence
 
 from .config import GeminiConfig
 from .state import PetState
 from .thoughts import THOUGHTS, safe_thought
 
-SYSTEM_PROMPT = """You are a virtual pet. Given your stats (0-100, higher is better), pick the one thought that fits best.
+SYSTEM_PROMPT = """You are a virtual pet. Given your stats (0-100, higher is better) and your recent actions, pick the one thought that fits best.
 
 Thoughts:
 {thoughts}
@@ -25,8 +26,12 @@ def build_system_prompt() -> str:
     return SYSTEM_PROMPT.format(thoughts=thoughts)
 
 
-def build_user_prompt(state: PetState, feedback: str | None = None) -> str:
-    msg = json.dumps(state.to_dict())
+def build_user_prompt(state: PetState, feedback: str | None = None,
+                      memory: Sequence[str] = ()) -> str:
+    """memory: what the pet did on the previous ticks, oldest first."""
+    msg = "Stats: " + json.dumps(state.to_dict())
+    if memory:
+        msg += "\nRecent actions (oldest first): " + ", ".join(memory)
     if feedback:
         msg += f"\n\nYour previous reply was rejected: {feedback}\nPick again."
     return msg
@@ -34,7 +39,8 @@ def build_user_prompt(state: PetState, feedback: str | None = None) -> str:
 
 class Brain(ABC):
     @abstractmethod
-    def decide(self, state: PetState, feedback: str | None = None) -> str:
+    def decide(self, state: PetState, feedback: str | None = None,
+               memory: Sequence[str] = ()) -> str:
         """Return the LLM's raw output string."""
 
 
@@ -58,7 +64,8 @@ class GeminiBrain(Brain):
         self.system = build_system_prompt()
         self.last_model: str | None = None  # model that actually answered this tick
 
-    def decide(self, state: PetState, feedback: str | None = None) -> str:
+    def decide(self, state: PetState, feedback: str | None = None,
+               memory: Sequence[str] = ()) -> str:
         """Try the main model, then the fallbacks; switch only on busy / timeout, re-raise anything else."""
         error: Exception | None = None
         self.last_model = None
@@ -67,7 +74,7 @@ class GeminiBrain(Brain):
                 interaction = self.client.interactions.create(
                     model=model,
                     system_instruction=self.system,
-                    input=build_user_prompt(state, feedback),
+                    input=build_user_prompt(state, feedback, memory),
                     generation_config={"thinking_level": self.thinking_level},
                     store=False,  # each tick is independent; no need to keep the conversation server-side
                 )
@@ -101,7 +108,8 @@ class MockBrain(Brain):
 
     last_model = "mock"
 
-    def decide(self, state: PetState, feedback: str | None = None) -> str:
+    def decide(self, state: PetState, feedback: str | None = None,
+               memory: Sequence[str] = ()) -> str:
         r = random.random()
         if feedback is None and r < 0.10:
             return "I think it should go eat"   # extra text instead of just a name
