@@ -83,7 +83,7 @@ def main() -> None:
             recalled = recall()
             if args.debug:
                 print("   [debug] prompt sent to the LLM:")
-                print(textwrap.indent(build_prompt(state, recalled), "      "))
+                print(textwrap.indent(build_prompt(recalled), "      "))
 
             # 1. Stats -> thought (LLM)
             try:
