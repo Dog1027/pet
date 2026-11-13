@@ -20,16 +20,21 @@ Available actions (choose only from these, using the exact name):
 {actions}
 
 Output only one JSON object and nothing else:
-{{"action": "<action name>", "reason": "<one short sentence>"}}"""
+{output_format}"""
+
+# Normal runs only need the action; debug mode also asks for a reason
+OUTPUT_FORMAT = '{"action": "<action name>"}'
+OUTPUT_FORMAT_DEBUG = '{"action": "<action name>", "reason": "<one short sentence>"}'
 
 
-def build_system_prompt() -> str:
+def build_system_prompt(debug: bool = False) -> str:
     stats = "\n".join(f"- {k}: {v}" for k, v in STAT_DESCRIPTIONS.items())
     actions = "\n".join(
         f"- {a.name} ({a.label}): {a.description}; effect approx. {a.preview()}"
         for a in ACTIONS.values()
     )
-    return SYSTEM_PROMPT.format(stats=stats, actions=actions)
+    output_format = OUTPUT_FORMAT_DEBUG if debug else OUTPUT_FORMAT
+    return SYSTEM_PROMPT.format(stats=stats, actions=actions, output_format=output_format)
 
 
 def build_user_prompt(state: PetState, feedback: str | None = None) -> str:
@@ -46,7 +51,7 @@ class Brain(ABC):
 
 
 class GeminiBrain(Brain):
-    def __init__(self, cfg: GeminiConfig):
+    def __init__(self, cfg: GeminiConfig, debug: bool = False):
         from google import genai  # lazy import so mock mode doesn't load the SDK
         from google.genai import types
 
@@ -62,12 +67,13 @@ class GeminiBrain(Brain):
         )
         self.models = [cfg.model, *cfg.fallback_models]
         self.thinking_level = cfg.thinking_level
-        self.system = build_system_prompt()
+        self.system = build_system_prompt(debug)
         self.last_model: str | None = None  # model that actually answered this tick
 
     def decide(self, state: PetState, feedback: str | None = None) -> str:
         """Try the main model, then the fallbacks; switch only on busy / timeout, re-raise anything else."""
         error: Exception | None = None
+        self.last_model = None
         for model in self.models:
             try:
                 interaction = self.client.interactions.create(
@@ -105,13 +111,21 @@ class MockBrain(Brain):
     """Fake brain that doesn't call any API, for testing the loop and the supervisor.
     It deliberately produces some bad outputs."""
 
+    def __init__(self, debug: bool = False):
+        self.debug = debug
+        self.last_model = "mock"
+
     def decide(self, state: PetState, feedback: str | None = None) -> str:
         r = random.random()
         if feedback is None and r < 0.10:
-            return "I think it should go eat"                      # not JSON
+            return "I think it should go eat"   # not JSON
         if feedback is None and r < 0.20:
-            return '{"action": "fly", "reason": "wants to fly"}'   # action doesn't exist
+            return self._out("fly", "wants to fly")      # action doesn't exist
         if feedback is None and r < 0.30:
-            return '{"action": "eat", "reason": "whatever"}'       # may not make sense
+            return self._out("eat", "whatever")          # may not make sense
         pick = safe_action(state)
-        return json.dumps({"action": pick, "reason": f"restore {ACTIONS[pick].restores}"})
+        return self._out(pick, f"restore {ACTIONS[pick].restores}")
+
+    def _out(self, action: str, reason: str) -> str:
+        obj = {"action": action, "reason": reason} if self.debug else {"action": action}
+        return json.dumps(obj)

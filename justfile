@@ -18,6 +18,10 @@ run *args:
 auto seconds="5" *args:
     uv run main.py --auto {{seconds}} --ticks 0 {{args}}
 
+# Debug mode: LLM gives a reason, raw output is shown (auto mode, default 5s)
+debug seconds="5" *args:
+    uv run main.py --debug --auto {{seconds}} --ticks 0 {{args}}
+
 # Test with a fake brain, no API calls (auto mode, default 1s)
 mock seconds="1" *args:
     uv run main.py --mock --auto {{seconds}} {{args}}

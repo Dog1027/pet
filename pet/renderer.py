@@ -16,6 +16,10 @@ class Renderer(ABC):
     def show_supervisor(self, attempt: int, ok: bool, errors: list[str], warnings: list[str]) -> None:
         pass
 
+    def show_debug(self, attempt: int, model: str | None, raw: str) -> None:
+        """Debug mode only: what the LLM actually returned."""
+        pass
+
 
 def _bar(v: int, width: int = 20) -> str:
     n = round(v / 100 * width)
@@ -23,12 +27,19 @@ def _bar(v: int, width: int = 20) -> str:
 
 
 class TextRenderer(Renderer):
+    def __init__(self, debug: bool = False):
+        self.debug = debug
+
     def show_action(self, pet_name, action, reason, fallback):
         tag = " (decided by the supervisor)" if fallback else ""
         print(f"\n🐾 {pet_name} decides to [{action.label}]{tag}")
         print(f"   {action.text}")
-        if reason:
-            print(f"   Reason: {reason}")
+        if self.debug and reason:
+            print(f"   [debug] reason: {reason}")
+
+    def show_debug(self, attempt, model, raw):
+        if self.debug:
+            print(f"   [debug #{attempt}] model={model} raw={raw.strip()!r}")
 
     def show_state(self, state, delta):
         for k, v in state.to_dict().items():

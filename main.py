@@ -20,6 +20,8 @@ def main() -> None:
     p.add_argument("--mock", action="store_true", help="use a fake brain instead of calling the API")
     p.add_argument("--config", default=str(config.DEFAULT_PATH), help="path to the config file")
     p.add_argument("--model", help="override the model in config.toml")
+    p.add_argument("--debug", action="store_true",
+                   help="debug mode: ask the LLM for a reason and show its raw output")
     args = p.parse_args()
 
     cfg = config.load(args.config)
@@ -27,14 +29,17 @@ def main() -> None:
         cfg.model = args.model
 
     state = PetState()
-    brain = MockBrain() if args.mock else GeminiBrain(cfg)
-    supervisor = Supervisor()
-    ui = TextRenderer()
+    brain = MockBrain(args.debug) if args.mock else GeminiBrain(cfg, args.debug)
+    supervisor = Supervisor(debug=args.debug)
+    ui = TextRenderer(args.debug)
 
     if args.auto is not None and args.auto <= 0:
         p.error("--auto must be greater than 0")
 
     print(f"=== {args.name} is born! ===")
+    if args.debug:
+        models = "mock" if args.mock else f"model={cfg.model}, fallbacks={cfg.fallback_models}"
+        print(f"(debug mode: {models})")
     if args.auto:
         print(f"(auto mode: a tick every {args.auto:g}s, Ctrl+C to quit)")
     else:
@@ -71,6 +76,7 @@ def main() -> None:
                 except Exception as e:  # API errors (network, key, quota, ...) shouldn't crash the program
                     print(f"   [LLM error] {type(e).__name__}: {str(e)[:150]}")
                     raw = ""  # the supervisor rejects it; retry or fall back as usual
+                ui.show_debug(attempt, getattr(brain, "last_model", None), raw)
                 verdict = supervisor.review(tick, attempt, raw, state)
                 ui.show_supervisor(attempt, verdict.ok, verdict.errors, verdict.warnings)
                 if verdict.ok:

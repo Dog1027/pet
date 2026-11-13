@@ -45,7 +45,7 @@ def _extract_json(raw: str) -> dict | None:
     return obj if isinstance(obj, dict) else None
 
 
-def check(raw: str, state: PetState) -> Verdict:
+def check(raw: str, state: PetState, expect_reason: bool = False) -> Verdict:
     # 1. Format
     obj = _extract_json(raw)
     if obj is None:
@@ -76,7 +76,7 @@ def check(raw: str, state: PetState) -> Verdict:
         v.errors.append("energy is too low to play")
     if action == "idle" and min(s.values()) < 50:
         v.warnings.append("chose to idle while some stats are low")
-    if not reason:
+    if expect_reason and not reason:  # reasons are only requested in debug mode
         v.warnings.append("no reason given")
 
     v.ok = not v.errors
@@ -84,14 +84,15 @@ def check(raw: str, state: PetState) -> Verdict:
 
 
 class Supervisor:
-    def __init__(self, log_path: str | Path = "logs/supervisor.jsonl"):
+    def __init__(self, log_path: str | Path = "logs/supervisor.jsonl", debug: bool = False):
+        self.debug = debug
         self.log_path = Path(log_path)
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
         self.total = 0
         self.passed = 0
 
     def review(self, tick: int, attempt: int, raw: str, state: PetState) -> Verdict:
-        verdict = check(raw, state)
+        verdict = check(raw, state, expect_reason=self.debug)
         self.total += 1
         self.passed += verdict.ok
         with self.log_path.open("a", encoding="utf-8") as f:
