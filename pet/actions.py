@@ -5,7 +5,7 @@ The LLM prompt, the supervisor and the fallback rule all pick it up
 automatically; no other file needs to change.
 
     @action("walk", "Walk", "go out for a walk", restores="mood",
-            animation="walk", text="🐕 Happily heads out for a walk!")
+            animation="walk")
     def walk(state: PetState) -> None:
         state.apply({"mood": +20, "energy": -10})
 
@@ -28,7 +28,6 @@ class Action:
     description: str        # shown to the LLM
     restores: str | None    # main stat this action restores (used by the supervisor and fallback rule)
     animation: str          # animation key for the future graphical display
-    text: str               # current text representation
     fn: ActionFn            # function that changes the stats
 
     def preview(self) -> dict[str, int]:
@@ -43,14 +42,14 @@ ACTIONS: dict[str, Action] = {}
 
 
 def action(name: str, label: str, description: str, *, restores: str | None,
-           animation: str, text: str) -> Callable[[ActionFn], ActionFn]:
+           animation: str) -> Callable[[ActionFn], ActionFn]:
     """Register an action function."""
     def register(fn: ActionFn) -> ActionFn:
         if name in ACTIONS:
             raise ValueError(f"action {name} is registered twice")
         if restores is not None and restores not in PetState.names():
             raise ValueError(f"action {name}: restores={restores} is not a valid stat")
-        ACTIONS[name] = Action(name, label, description, restores, animation, text, fn)
+        ACTIONS[name] = Action(name, label, description, restores, animation, fn)
         return fn
     return register
 
@@ -58,43 +57,43 @@ def action(name: str, label: str, description: str, *, restores: str | None,
 # ---------------------------------------------------------------- action functions
 
 @action("eat", "Eat", "eat some food to restore fullness", restores="fullness",
-        animation="eat", text="🍖 Gobbles down its food...")
+        animation="eat")
 def eat(state: PetState) -> None:
     state.apply({"fullness": +35, "energy": +5, "cleanliness": -5})
 
 
 @action("sleep", "Sleep", "take a nap to restore a lot of energy", restores="energy",
-        animation="sleep", text="💤 Curls up into a ball and snores away...")
+        animation="sleep")
 def sleep(state: PetState) -> None:
     state.apply({"energy": +45, "fullness": -10, "social": -5})
 
 
 @action("play", "Play", "play with toys; lifts mood but uses energy", restores="mood",
-        animation="play", text="🎾 Chases the ball all over the place!")
+        animation="play")
 def play(state: PetState) -> None:
     state.apply({"mood": +25, "energy": -15, "fullness": -10, "cleanliness": -10})
 
 
 @action("bathe", "Bathe", "take a bath to greatly improve cleanliness", restores="cleanliness",
-        animation="bathe", text="🛁 Splashes water around the tub...")
+        animation="bathe")
 def bathe(state: PetState) -> None:
     state.apply({"cleanliness": +45, "mood": -5, "health": +5})
 
 
 @action("seek_attention", "Cuddle", "ask the owner for attention to meet social needs",
-        restores="social", animation="cuddle", text="🥺 Rubs against the owner's leg, wants pets~")
+        restores="social", animation="cuddle")
 def seek_attention(state: PetState) -> None:
     state.apply({"social": +35, "mood": +10, "energy": -5})
 
 
 @action("rest", "Rest", "lie down quietly to slowly recover health and energy", restores="health",
-        animation="rest", text="🛋️ Lies quietly in its bed, resting.")
+        animation="rest")
 def rest(state: PetState) -> None:
     state.apply({"health": +15, "energy": +15, "mood": -5})
 
 
 @action("idle", "Idle", "do nothing", restores=None,
-        animation="idle", text="😶 Stares blankly out the window...")
+        animation="idle")
 def idle(state: PetState) -> None:
     pass
 

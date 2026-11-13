@@ -33,7 +33,6 @@ class TextRenderer(Renderer):
     def show_action(self, pet_name, action, reason, fallback):
         tag = " (decided by the supervisor)" if fallback else ""
         print(f"\n🐾 {pet_name} decides to [{action.label}]{tag}")
-        print(f"   {action.text}")
         if self.debug and reason:
             print(f"   [debug] reason: {reason}")
 
