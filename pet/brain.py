@@ -13,13 +13,10 @@ from .state import PetState
 from .thoughts import THOUGHTS
 
 def build_prompt(state: PetState, memory: Sequence[str] = ()) -> str:
-    """The whole prompt: the stats, then the recent actions.
+    """The whole prompt: one JSON object with the six stats and the recent actions.
     The thought list and the reply format come from response_schema(), not the prompt.
     memory: what the pet did on the previous ticks, oldest first."""
-    lines = ["Stats: " + json.dumps(state.to_dict())]
-    if memory:
-        lines.append("Recent actions (oldest first): " + ", ".join(memory))
-    return "\n".join(lines)
+    return json.dumps({**state.to_dict(), "recent": ", ".join(memory)}, indent=4)
 
 
 def response_schema() -> dict:
