@@ -50,13 +50,14 @@ def main() -> None:
     next_time = time.monotonic()
     try:
         while args.ticks == 0 or tick < args.ticks:
+            late = False
             if args.auto:
                 # Fixed rate: measured from the *start* of the previous tick, so LLM time is included
                 wait = next_time - time.monotonic()
                 if wait > 0:
                     time.sleep(wait)
                 elif tick > 0:
-                    print(f"   ⏱️  the last tick took longer than {args.auto:g}s, running now")
+                    late = True
                 next_time = max(next_time, time.monotonic() - args.auto) + args.auto
             else:
                 try:
@@ -66,7 +67,9 @@ def main() -> None:
                     break
 
             tick += 1
-            print(f"\n--- Tick {tick} ---")
+            ui.begin_tick(tick)  # normal mode clears the screen here
+            if late:
+                print(f"   ⏱️  the last tick took longer than {args.auto:g}s, running now")
 
             # 1. Stats -> action (LLM), checked by the supervisor; if rejected, ask again with feedback
             feedback, verdict = None, None

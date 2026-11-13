@@ -1,5 +1,6 @@
 """Display layer. Text for now; to switch to graphics later, implement a new Renderer.
 The main loop doesn't need to change."""
+import sys
 from abc import ABC, abstractmethod
 
 from .actions import Action
@@ -7,6 +8,10 @@ from .state import PetState
 
 
 class Renderer(ABC):
+    def begin_tick(self, tick: int) -> None:
+        """Called at the start of every tick."""
+        pass
+
     @abstractmethod
     def show_action(self, pet_name: str, action: Action, reason: str, fallback: bool) -> None: ...
 
@@ -29,6 +34,14 @@ def _bar(v: int, width: int = 20) -> str:
 class TextRenderer(Renderer):
     def __init__(self, debug: bool = False):
         self.debug = debug
+        # Normal mode keeps only the current tick on screen; debug mode keeps the full history.
+        # Only clear on a real terminal, so piped output / logs stay readable.
+        self.clear_each_tick = not debug and sys.stdout.isatty()
+
+    def begin_tick(self, tick):
+        if self.clear_each_tick:
+            print("\033[2J\033[H", end="")  # clear screen, cursor to top-left
+        print(f"\n--- Tick {tick} ---")
 
     def show_action(self, pet_name, action, reason, fallback):
         tag = " (decided by the supervisor)" if fallback else ""
