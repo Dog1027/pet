@@ -12,22 +12,16 @@ from .config import GeminiConfig
 from .state import PetState
 from .thoughts import THOUGHTS
 
-SYSTEM_PROMPT = """Thoughts: {thoughts}
-
-Reply with only the thought's name, nothing else."""
-
-
-def build_system_prompt() -> str:
-    thoughts = ", ".join(THOUGHTS)
-    return SYSTEM_PROMPT.format(thoughts=thoughts)
-
-
-def build_user_prompt(state: PetState, memory: Sequence[str] = ()) -> str:
-    """memory: what the pet did on the previous ticks, oldest first."""
-    msg = "Stats: " + json.dumps(state.to_dict())
+def build_prompt(state: PetState, memory: Sequence[str] = ()) -> str:
+    """The whole prompt, in order: stats, recent actions, the thought list, the reply rule.
+    memory: what the pet did on the previous ticks, oldest first."""
+    lines = ["Stats: " + json.dumps(state.to_dict())]
     if memory:
-        msg += "\nRecent actions (oldest first): " + ", ".join(memory)
-    return msg
+        lines.append("Recent actions (oldest first): " + ", ".join(memory))
+    lines.append("Thoughts: " + ", ".join(THOUGHTS))
+    lines.append("")
+    lines.append("Reply with only the thought's name, nothing else.")
+    return "\n".join(lines)
 
 
 class Brain(ABC):
@@ -53,7 +47,6 @@ class GeminiBrain(Brain):
         )
         self.models = [cfg.model, *cfg.fallback_models]
         self.thinking_level = cfg.thinking_level
-        self.system = build_system_prompt()
         self.last_model: str | None = None  # model that actually answered this tick
 
     def decide(self, state: PetState, memory: Sequence[str] = ()) -> str:
@@ -64,8 +57,7 @@ class GeminiBrain(Brain):
             try:
                 interaction = self.client.interactions.create(
                     model=model,
-                    system_instruction=self.system,
-                    input=build_user_prompt(state, memory),
+                    input=build_prompt(state, memory),
                     generation_config={"thinking_level": self.thinking_level},
                     store=False,  # each tick is independent; no need to keep the conversation server-side
                 )
