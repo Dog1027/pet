@@ -29,10 +29,10 @@ def main() -> None:
 
     cfg = config.load(args.config)
     if args.model:
-        cfg.model = args.model
+        cfg.gemini.model = args.model
 
     state = PetState()
-    brain = MockBrain() if args.mock else GeminiBrain(cfg)
+    brain = MockBrain() if args.mock else GeminiBrain(cfg.gemini)
     ui = TextRenderer(args.debug)
 
     if args.auto is not None and args.auto <= 0:
@@ -40,7 +40,7 @@ def main() -> None:
 
     print(f"=== {args.name} is born! ===")
     if args.debug:
-        models = "mock" if args.mock else f"model={cfg.model}, fallbacks={cfg.fallback_models}"
+        models = "mock" if args.mock else f"model={cfg.gemini.model}, fallbacks={cfg.gemini.fallback_models}"
         print(f"(debug mode: {models})")
     if args.auto:
         print(f"(auto mode: a tick every {args.auto:g}s, Ctrl+C to quit)")
@@ -49,8 +49,13 @@ def main() -> None:
     ui.show_state(state, {})
 
     tick = 0
-    # one plain-text line per previous tick (action and its result), oldest first
-    memory: deque[str] = deque(maxlen=MEMORY_SIZE)
+    # (real time it happened, "action -> result") for the previous ticks, oldest first
+    memory: deque[tuple[float, str]] = deque(maxlen=MEMORY_SIZE)
+
+    def recall() -> list[tuple[float, str]]:
+        """Memory as the LLM sees it: (seconds ago * time_scale, text), most recent first."""
+        now = time.monotonic()
+        return [((now - t) * cfg.memory_time_scale, text) for t, text in reversed(memory)]
     next_time = time.monotonic()
     try:
         while args.ticks == 0 or tick < args.ticks:
@@ -75,13 +80,14 @@ def main() -> None:
             if late:
                 print(f"   ⏱️  the last tick took longer than {args.auto:g}s, running now")
 
+            recalled = recall()
             if args.debug:
                 print("   [debug] prompt sent to the LLM:")
-                print(textwrap.indent(build_prompt(state, memory), "      "))
+                print(textwrap.indent(build_prompt(state, recalled), "      "))
 
             # 1. Stats -> thought (LLM)
             try:
-                raw = brain.decide(state, memory)
+                raw = brain.decide(state, recalled)
             except Exception as e:  # API errors (network, key, quota, ...) shouldn't crash the program
                 print(f"   [LLM error] {type(e).__name__}: {str(e)[:150]}")
                 raw = ""
@@ -97,7 +103,7 @@ def main() -> None:
             # 4. Display
             if action_name:
                 label = action_name if result.applied else f"{action_name} (no effect)"
-                memory.append(f"{label} -> {result.summary()}")
+                memory.append((time.monotonic(), f"{label} -> {result.summary()}"))
                 ui.show_action(args.name, ACTIONS[action_name], thought_name, result.applied)
             else:
                 ui.show_no_action(args.name, raw)

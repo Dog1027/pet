@@ -15,16 +15,28 @@ class GeminiConfig:
     timeout: float = 20.0        # max seconds to wait per request
 
 
-def load(path: str | Path = DEFAULT_PATH) -> GeminiConfig:
+@dataclass
+class Config:
+    gemini: GeminiConfig = field(default_factory=GeminiConfig)
+    # Memory timestamps shown to the LLM = real seconds since the action * this factor
+    memory_time_scale: float = 1.0
+
+
+def load(path: str | Path = DEFAULT_PATH) -> Config:
     path = Path(path)
-    cfg = GeminiConfig()
+    cfg = Config()
     if not path.exists():
         return cfg
     with path.open("rb") as f:
-        data = tomllib.load(f).get("gemini", {})
-    cfg.api_key = data.get("api_key") or None
-    cfg.model = data.get("model", cfg.model)
-    cfg.fallback_models = list(data.get("fallback_models", cfg.fallback_models))
-    cfg.thinking_level = data.get("thinking_level", cfg.thinking_level)
-    cfg.timeout = float(data.get("timeout", cfg.timeout))
+        doc = tomllib.load(f)
+
+    data = doc.get("gemini", {})
+    g = cfg.gemini
+    g.api_key = data.get("api_key") or None
+    g.model = data.get("model", g.model)
+    g.fallback_models = list(data.get("fallback_models", g.fallback_models))
+    g.thinking_level = data.get("thinking_level", g.thinking_level)
+    g.timeout = float(data.get("timeout", g.timeout))
+
+    cfg.memory_time_scale = float(doc.get("memory", {}).get("time_scale", cfg.memory_time_scale))
     return cfg
