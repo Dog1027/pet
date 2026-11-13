@@ -13,15 +13,23 @@ from .state import PetState
 from .thoughts import THOUGHTS
 
 def build_prompt(state: PetState, memory: Sequence[str] = ()) -> str:
-    """The whole prompt, in order: stats, recent actions, the thought list, the reply rule.
+    """The whole prompt, in order: stats, recent actions, the thought list.
+    The reply format is enforced by response_schema(), so the prompt doesn't describe it.
     memory: what the pet did on the previous ticks, oldest first."""
     lines = ["Stats: " + json.dumps(state.to_dict())]
     if memory:
         lines.append("Recent actions (oldest first): " + ", ".join(memory))
     lines.append("Thoughts: " + ", ".join(THOUGHTS))
-    lines.append("")
-    lines.append("Reply with only the thought's name, nothing else.")
     return "\n".join(lines)
+
+
+def response_schema() -> dict:
+    """JSON schema the reply must follow: {"thought": <one name from the thought list>}."""
+    return {
+        "type": "object",
+        "properties": {"thought": {"type": "string", "enum": list(THOUGHTS)}},
+        "required": ["thought"],
+    }
 
 
 class Brain(ABC):
@@ -58,6 +66,8 @@ class GeminiBrain(Brain):
                 interaction = self.client.interactions.create(
                     model=model,
                     input=build_prompt(state, memory),
+                    response_format={"type": "text", "mime_type": "application/json",
+                                     "schema": response_schema()},
                     generation_config={"thinking_level": self.thinking_level},
                     store=False,  # each tick is independent; no need to keep the conversation server-side
                 )
@@ -91,4 +101,4 @@ class MockBrain(Brain):
     last_model = "mock"
 
     def decide(self, state: PetState, memory: Sequence[str] = ()) -> str:
-        return random.choice(list(THOUGHTS))
+        return json.dumps({"thought": random.choice(list(THOUGHTS))})

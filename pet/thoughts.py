@@ -15,6 +15,7 @@ For now every tree maps straight to one action; extend them with conditions late
 To add a thought, write a decision function and decorate it with @thought(...).
 The LLM prompt picks it up automatically.
 """
+import json
 from dataclasses import dataclass
 from typing import Callable
 
@@ -83,9 +84,12 @@ def decide_nothing(state: PetState) -> str:
 # ---------------------------------------------------------------- parse / resolve
 
 def parse(raw: str) -> str | None:
-    """Turn the LLM's reply into a thought name, or None if it isn't one from the list.
-    Tolerates harmless wrapping: whitespace, quotes, backticks, a trailing period, capitals."""
-    name = raw.strip().strip("`\"'.").strip().lower()
+    """Read the thought name out of the LLM's JSON reply ({"thought": "<name>"}).
+    Returns None if the reply isn't valid JSON or the name isn't in the list."""
+    try:
+        name = json.loads(raw)["thought"]
+    except (ValueError, KeyError, TypeError):
+        return None
     return name if name in THOUGHTS else None
 
 
