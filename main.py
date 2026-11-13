@@ -2,10 +2,10 @@
 import argparse
 import textwrap
 import time
-from collections import deque
 
 from pet import config
 from pet.actions import ACTIONS, apply_action
+from pet.memory import Memory
 from pet.brain import GeminiBrain, MockBrain, build_prompt
 from pet.renderer import TextRenderer
 from pet.state import PetState
@@ -49,13 +49,7 @@ def main() -> None:
     ui.show_state(state, {})
 
     tick = 0
-    # (real time it happened, "action|result") for the previous ticks, oldest first
-    memory: deque[tuple[float, str]] = deque(maxlen=MEMORY_SIZE)
-
-    def recall() -> list[tuple[float, str]]:
-        """Memory as the LLM sees it: (seconds ago * time_scale, text), most recent first."""
-        now = time.monotonic()
-        return [((now - t) * cfg.memory_time_scale, text) for t, text in reversed(memory)]
+    memory = Memory(MEMORY_SIZE, cfg.memory)
     next_time = time.monotonic()
     try:
         while args.ticks == 0 or tick < args.ticks:
@@ -80,7 +74,7 @@ def main() -> None:
             if late:
                 print(f"   ⏱️  the last tick took longer than {args.auto:g}s, running now")
 
-            recalled = recall()
+            recalled = memory.recall()
             if args.debug:
                 print("   [debug] prompt sent to the LLM:")
                 print(textwrap.indent(build_prompt(state, recalled), "      "))
@@ -103,7 +97,7 @@ def main() -> None:
             # 4. Display
             if action_name:
                 label = action_name if result.applied else f"{action_name} (no effect)"
-                memory.append((time.monotonic(), f"{label}|{result.summary()}"))
+                memory.add(f"{label}|{result.summary()}")
                 ui.show_action(args.name, ACTIONS[action_name], thought_name, result.applied)
             else:
                 ui.show_no_action(args.name, raw)

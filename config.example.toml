@@ -17,3 +17,9 @@ timeout = 20
 # That time = real seconds since the action * time_scale.
 # e.g. 60 makes one real second count as one minute for the pet.
 time_scale = 1.0
+
+# Older memories fade: some characters are replaced by commas.
+# Entries in the first fade_start share of the memory (the most recent ones) stay intact;
+# after that the blanked share grows linearly, reaching fade_max at the oldest entry.
+fade_start = 0.5
+fade_max = 0.8

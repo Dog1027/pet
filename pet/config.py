@@ -16,10 +16,16 @@ class GeminiConfig:
 
 
 @dataclass
+class MemoryConfig:
+    time_scale: float = 1.0   # timestamps shown to the LLM = real seconds since the action * this
+    fade_start: float = 0.5   # entries past this share of the memory start losing characters
+    fade_max: float = 0.8     # share of characters blanked in the oldest entry
+
+
+@dataclass
 class Config:
     gemini: GeminiConfig = field(default_factory=GeminiConfig)
-    # Memory timestamps shown to the LLM = real seconds since the action * this factor
-    memory_time_scale: float = 1.0
+    memory: MemoryConfig = field(default_factory=MemoryConfig)
 
 
 def load(path: str | Path = DEFAULT_PATH) -> Config:
@@ -38,5 +44,9 @@ def load(path: str | Path = DEFAULT_PATH) -> Config:
     g.thinking_level = data.get("thinking_level", g.thinking_level)
     g.timeout = float(data.get("timeout", g.timeout))
 
-    cfg.memory_time_scale = float(doc.get("memory", {}).get("time_scale", cfg.memory_time_scale))
+    data = doc.get("memory", {})
+    m = cfg.memory
+    m.time_scale = float(data.get("time_scale", m.time_scale))
+    m.fade_start = float(data.get("fade_start", m.fade_start))
+    m.fade_max = float(data.get("fade_max", m.fade_max))
     return cfg
