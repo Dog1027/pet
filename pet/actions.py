@@ -50,8 +50,8 @@ class ActionResult:
     applied: bool           # False if the condition blocked the action's effect
 
     def summary(self) -> str:
-        """The change as text, e.g. "fullness: +29, energy: +1" (stored in the pet's memory)."""
-        return ", ".join(f"{k}: {v:+d}" for k, v in self.delta.items())
+        """The change as text, e.g. "fullness +29, energy +1" (stored in the pet's memory)."""
+        return ", ".join(f"{k} {v:+d}" for k, v in self.delta.items())
 
 
 ACTIONS: dict[str, Action] = {}

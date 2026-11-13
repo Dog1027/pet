@@ -11,7 +11,7 @@ from pet.renderer import TextRenderer
 from pet.state import PetState
 from pet.thoughts import parse, resolve
 
-MEMORY_SIZE = 10  # how many previous ticks (action + result) the LLM is shown
+MEMORY_SIZE = 10  # how many previous ticks the LLM is shown
 
 
 def main() -> None:
@@ -49,8 +49,8 @@ def main() -> None:
     ui.show_state(state, {})
 
     tick = 0
-    # (action, result text) of the previous ticks, oldest first
-    memory: deque[tuple[str, str]] = deque(maxlen=MEMORY_SIZE)
+    # one plain-text line per previous tick (action and its result), oldest first
+    memory: deque[str] = deque(maxlen=MEMORY_SIZE)
     next_time = time.monotonic()
     try:
         while args.ticks == 0 or tick < args.ticks:
@@ -97,7 +97,7 @@ def main() -> None:
             # 4. Display
             if action_name:
                 label = action_name if result.applied else f"{action_name} (no effect)"
-                memory.append((label, result.summary()))
+                memory.append(f"{label} -> {result.summary()}")
                 ui.show_action(args.name, ACTIONS[action_name], thought_name, result.applied)
             else:
                 ui.show_no_action(args.name, raw)
