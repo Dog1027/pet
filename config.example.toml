@@ -13,7 +13,7 @@ thinking_level = "low"
 timeout = 20
 
 [memory]
-# The LLM sees how long ago each remembered action happened ("now-12s").
+# The LLM sees how long ago each remembered action happened ("-12s").
 # That time = real seconds since the action * time_scale.
 # e.g. 60 makes one real second count as one minute for the pet.
 time_scale = 1.0

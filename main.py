@@ -49,7 +49,7 @@ def main() -> None:
     ui.show_state(state, {})
 
     tick = 0
-    # (real time it happened, "action -> result") for the previous ticks, oldest first
+    # (real time it happened, "action|result") for the previous ticks, oldest first
     memory: deque[tuple[float, str]] = deque(maxlen=MEMORY_SIZE)
 
     def recall() -> list[tuple[float, str]]:
@@ -103,7 +103,7 @@ def main() -> None:
             # 4. Display
             if action_name:
                 label = action_name if result.applied else f"{action_name} (no effect)"
-                memory.append((time.monotonic(), f"{label} -> {result.summary()}"))
+                memory.append((time.monotonic(), f"{label}|{result.summary()}"))
                 ui.show_action(args.name, ACTIONS[action_name], thought_name, result.applied)
             else:
                 ui.show_no_action(args.name, raw)

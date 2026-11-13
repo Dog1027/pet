@@ -17,7 +17,7 @@ def build_prompt(state: PetState, memory: Sequence[tuple[float, str]] = ()) -> s
     The thought list and the reply format come from response_schema(), not the prompt.
     memory: (seconds ago, text) for each remembered tick, most recent first."""
     status = ",\n".join(f"{k}: {v}" for k, v in state.to_dict().items())
-    mem = "\n".join(f"now-{round(age)}s {text}" for age, text in memory) if memory else "(empty)"
+    mem = "\n".join(f"-{round(age)}s|{text}" for age, text in memory) if memory else "(empty)"
     return f"Status:\n{status}\n\nMemory:\n{mem}"
 
 
