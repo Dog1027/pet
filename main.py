@@ -1,16 +1,17 @@
 """Main loop: stats -> (LLM) thought -> (decision tree) action -> (code) update stats -> repeat"""
 import argparse
+import textwrap
 import time
 from collections import deque
 
 from pet import config
 from pet.actions import ACTIONS, apply_action
-from pet.brain import GeminiBrain, MockBrain
+from pet.brain import GeminiBrain, MockBrain, build_prompt
 from pet.renderer import TextRenderer
 from pet.state import PetState
 from pet.thoughts import parse, resolve
 
-MEMORY_SIZE = 10  # how many previous actions the LLM is shown
+MEMORY_SIZE = 10  # how many previous ticks (action + result) the LLM is shown
 
 
 def main() -> None:
@@ -48,7 +49,8 @@ def main() -> None:
     ui.show_state(state, {})
 
     tick = 0
-    memory: deque[str] = deque(maxlen=MEMORY_SIZE)  # recent actions, oldest first
+    # (action, result text) of the previous ticks, oldest first
+    memory: deque[tuple[str, str]] = deque(maxlen=MEMORY_SIZE)
     next_time = time.monotonic()
     try:
         while args.ticks == 0 or tick < args.ticks:
@@ -74,7 +76,8 @@ def main() -> None:
                 print(f"   ⏱️  the last tick took longer than {args.auto:g}s, running now")
 
             if args.debug:
-                print(f"   [debug] memory sent to the LLM: {list(memory)}")
+                print("   [debug] prompt sent to the LLM:")
+                print(textwrap.indent(build_prompt(state, memory), "      "))
 
             # 1. Stats -> thought (LLM)
             try:
@@ -93,7 +96,8 @@ def main() -> None:
 
             # 4. Display
             if action_name:
-                memory.append(action_name if result.applied else f"{action_name} (no effect)")
+                label = action_name if result.applied else f"{action_name} (no effect)"
+                memory.append((label, result.summary()))
                 ui.show_action(args.name, ACTIONS[action_name], thought_name, result.applied)
             else:
                 ui.show_no_action(args.name, raw)

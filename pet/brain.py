@@ -12,11 +12,17 @@ from .config import GeminiConfig
 from .state import PetState
 from .thoughts import THOUGHTS
 
-def build_prompt(state: PetState, memory: Sequence[str] = ()) -> str:
-    """The whole prompt: one JSON object with the six stats and the recent actions.
+def build_prompt(state: PetState, memory: Sequence[tuple[str, str]] = ()) -> str:
+    """The whole prompt: the current stats, then the memory of previous ticks.
     The thought list and the reply format come from response_schema(), not the prompt.
-    memory: what the pet did on the previous ticks, oldest first."""
-    return json.dumps({**state.to_dict(), "recent": ", ".join(memory)}, indent=4)
+    memory: (action, result text) for each previous tick, oldest first."""
+    status = json.dumps(state.to_dict(), indent=4)
+    if memory:
+        entries = ",\n".join(f"    {json.dumps(action)}: {json.dumps(result)}" for action, result in memory)
+        mem = "{\n" + entries + "\n}"
+    else:
+        mem = "{}"
+    return f"Status: {status}\n\nMemory: {mem}"
 
 
 def response_schema() -> dict:
@@ -30,7 +36,7 @@ def response_schema() -> dict:
 
 class Brain(ABC):
     @abstractmethod
-    def decide(self, state: PetState, memory: Sequence[str] = ()) -> str:
+    def decide(self, state: PetState, memory: Sequence[tuple[str, str]] = ()) -> str:
         """Return the LLM's raw output string."""
 
 
@@ -53,7 +59,7 @@ class GeminiBrain(Brain):
         self.thinking_level = cfg.thinking_level
         self.last_model: str | None = None  # model that actually answered this tick
 
-    def decide(self, state: PetState, memory: Sequence[str] = ()) -> str:
+    def decide(self, state: PetState, memory: Sequence[tuple[str, str]] = ()) -> str:
         """Try the main model, then the fallbacks; switch only on busy / timeout, re-raise anything else."""
         error: Exception | None = None
         self.last_model = None
@@ -96,5 +102,5 @@ class MockBrain(Brain):
 
     last_model = "mock"
 
-    def decide(self, state: PetState, memory: Sequence[str] = ()) -> str:
+    def decide(self, state: PetState, memory: Sequence[tuple[str, str]] = ()) -> str:
         return json.dumps({"thought": random.choice(list(THOUGHTS))})
