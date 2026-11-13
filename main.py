@@ -1,4 +1,4 @@
-"""Main loop: stats -> (LLM) thought -> (decision tree) action -> (code) update stats -> repeat"""
+"""Main loop: stats -> (code) thoughts -> (LLM) action -> (code) update stats -> repeat"""
 import argparse
 import textwrap
 import time
@@ -6,10 +6,10 @@ import time
 from pet import config
 from pet.actions import ACTIONS, apply_action
 from pet.memory import Memory
-from pet.brain import GeminiBrain, MockBrain, build_prompt
+from pet.brain import GeminiBrain, MockBrain, build_prompt, parse
 from pet.renderer import TextRenderer
 from pet.state import PetState
-from pet.thoughts import parse, resolve
+from pet.thoughts import current_thoughts, describe_change
 
 MEMORY_SIZE = 10  # how many previous ticks the LLM is shown
 
@@ -24,7 +24,7 @@ def main() -> None:
     p.add_argument("--config", default=str(config.DEFAULT_PATH), help="path to the config file")
     p.add_argument("--model", help="override the model in config.toml")
     p.add_argument("--debug", action="store_true",
-                   help="debug mode: show the LLM's raw output and the thought -> action step")
+                   help="debug mode: show the prompt sent to the LLM and its raw output")
     args = p.parse_args()
 
     cfg = config.load(args.config)
@@ -74,31 +74,32 @@ def main() -> None:
             if late:
                 print(f"   ⏱️  the last tick took longer than {args.auto:g}s, running now")
 
+            # 1. Stats -> thoughts (code)
+            thoughts = current_thoughts(state)
+            ui.show_thoughts(thoughts)
+
             recalled = memory.recall()
             if args.debug:
                 print("   [debug] prompt sent to the LLM:")
-                print(textwrap.indent(build_prompt(state, recalled), "      "))
+                print(textwrap.indent(build_prompt(thoughts, recalled), "      "))
 
-            # 1. Stats -> thought (LLM)
+            # 2. Thoughts + memory -> action (LLM); no usable reply -> no action this tick
             try:
-                raw = brain.decide(state, recalled)
+                raw = brain.decide(thoughts, recalled)
             except Exception as e:  # API errors (network, key, quota, ...) shouldn't crash the program
                 print(f"   [LLM error] {type(e).__name__}: {str(e)[:150]}")
                 raw = ""
             ui.show_debug(getattr(brain, "last_model", None), raw)
-            thought_name = parse(raw)
-
-            # 2. Thought -> action (decision tree, code); no usable thought -> no action this tick
-            action_name = resolve(thought_name, state) if thought_name else None
+            action_name = parse(raw)
 
             # 3. Action -> stats (code)
             result = apply_action(state, action_name)
 
-            # 4. Display
+            # 4. Remember what the action did to the pet's thoughts, and display
             if action_name:
                 label = action_name if result.applied else f"{action_name} (no effect)"
-                memory.add(label, result.summary())
-                ui.show_action(args.name, ACTIONS[action_name], thought_name, result.applied)
+                memory.add(label, describe_change(thoughts, current_thoughts(state)))
+                ui.show_action(args.name, ACTIONS[action_name], result.applied)
             else:
                 ui.show_no_action(args.name, raw)
             ui.show_state(state, result.delta)

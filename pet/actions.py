@@ -1,10 +1,9 @@
 """Actions: the functions here change the stats.
 
-The LLM never sees actions. It picks a thought, and the thought's decision tree
-(thoughts.py) picks which action to run.
+The LLM picks one of these actions each tick, based on the pet's thoughts and memory.
 
-To add an action, write a function and decorate it with @action(...),
-then return its name from a decision tree in thoughts.py.
+To add an action, write a function and decorate it with @action(...).
+The LLM's list of choices picks it up automatically.
 
     def can_walk(state: PetState) -> bool:
         return state.energy >= 20          # too tired to go out
@@ -48,11 +47,6 @@ class Action:
 class ActionResult:
     delta: dict[str, int]   # actual change this tick (action + per-tick rules)
     applied: bool           # False if the condition blocked the action's effect
-
-    def summary(self) -> str:
-        """The change of every stat as text, unchanged ones included,
-        e.g. "fullness+29,energy+1,...,health+0" (stored in the pet's memory)."""
-        return ",".join(f"{k}{self.delta.get(k, 0):+d}" for k in PetState.names())
 
 
 ACTIONS: dict[str, Action] = {}

@@ -13,17 +13,20 @@ class Renderer(ABC):
         pass
 
     @abstractmethod
-    def show_action(self, pet_name: str, action: Action, thought: str,
-                    applied: bool = True) -> None:
-        """thought: the thought that led to this action.
-        applied=False: the action's condition blocked its effect this tick."""
+    def show_thoughts(self, thoughts: dict[str, str]) -> None:
+        """What the pet is feeling this tick: {name: strength}."""
+        pass
+
+    @abstractmethod
+    def show_action(self, pet_name: str, action: Action, applied: bool = True) -> None:
+        """applied=False: the action's condition blocked its effect this tick."""
 
     @abstractmethod
     def show_state(self, state: PetState, delta: dict[str, int]) -> None: ...
 
     @abstractmethod
     def show_no_action(self, pet_name: str, raw: str) -> None:
-        """The LLM's reply wasn't a thought from the list, so nothing happens this tick."""
+        """The LLM's reply wasn't an action from the list, so nothing happens this tick."""
 
     def show_debug(self, model: str | None, raw: str) -> None:
         """Debug mode only: what the LLM actually returned."""
@@ -47,14 +50,16 @@ class TextRenderer(Renderer):
             print("\033[2J\033[H", end="")  # clear screen, cursor to top-left
         print(f"\n--- Tick {tick} ---")
 
-    def show_action(self, pet_name, action, thought, applied=True):
+    def show_thoughts(self, thoughts):
+        text = ", ".join(f"{name} ({level})" for name, level in thoughts.items()) or "none"
+        print(f"   thoughts: {text}")
+
+    def show_action(self, pet_name, action, applied=True):
         print(f"\n🐾 {pet_name} decides to [{action.label}]")
         if not applied:
             print("   ...but it has no effect this time")
         if self.debug and not applied:
             print(f"   [debug] condition {action.condition.__name__} returned False")
-        if self.debug:
-            print(f"   [debug] thought: {thought} -> action: {action.name}")
 
     def show_no_action(self, pet_name, raw):
         print(f"\n🐾 {pet_name} does nothing (unusable reply: {raw.strip()!r})")

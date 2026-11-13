@@ -1,38 +1,48 @@
-"""Stats -> thought: handled by the LLM.
+"""Thoughts -> action: handled by the LLM.
 
-A Brain only takes the state and returns the LLM's raw text. Turning that into a
-thought and then an action is done in thoughts.py.
+A Brain takes the pet's current thoughts and its memory and returns the LLM's raw text.
+The LLM never sees the stats' numbers; the thoughts are worked out in thoughts.py.
 """
 import json
 import random
 from abc import ABC, abstractmethod
-from typing import Sequence
+from typing import Mapping, Sequence
 
+from .actions import ACTIONS
 from .config import GeminiConfig
-from .state import PetState
-from .thoughts import THOUGHTS
 
-def build_prompt(state: PetState, memory: Sequence[tuple[float, str]] = ()) -> str:
-    """The whole prompt: the current stats, then the memory of previous ticks.
-    The thought list and the reply format come from response_schema(), not the prompt.
-    memory: (seconds ago, text) for each remembered tick, most recent first."""
-    status = ",\n".join(f"{k}: {v}" for k, v in state.to_dict().items())
+
+def build_prompt(thoughts: Mapping[str, str], memory: Sequence[tuple[float, str]] = ()) -> str:
+    """The whole prompt: the current thoughts, then the memory of previous ticks.
+    The action list and the reply format come from response_schema(), not the prompt.
+    thoughts: {name: strength}; memory: (seconds ago, text) per remembered tick, most recent first."""
+    th = ",\n".join(f"{name}: {level}" for name, level in thoughts.items()) if thoughts else "(none)"
     mem = "\n".join(f"-{round(age)}s|{text}" for age, text in memory) if memory else "(empty)"
-    return f"Status:\n{status}\n\nMemory:\n{mem}"
+    return f"Thoughts:\n{th}\n\nMemory:\n{mem}"
 
 
 def response_schema() -> dict:
-    """JSON schema the reply must follow: {"thought": <one name from the thought list>}."""
+    """JSON schema the reply must follow: {"action": <one name from the action list>}."""
     return {
         "type": "object",
-        "properties": {"thought": {"type": "string", "enum": list(THOUGHTS)}},
-        "required": ["thought"],
+        "properties": {"action": {"type": "string", "enum": list(ACTIONS)}},
+        "required": ["action"],
     }
+
+
+def parse(raw: str) -> str | None:
+    """Read the action name out of the LLM's JSON reply ({"action": "<name>"}).
+    Returns None if the reply isn't valid JSON or the name isn't a registered action."""
+    try:
+        name = json.loads(raw)["action"]
+    except (ValueError, KeyError, TypeError):
+        return None
+    return name if name in ACTIONS else None
 
 
 class Brain(ABC):
     @abstractmethod
-    def decide(self, state: PetState, memory: Sequence[tuple[float, str]] = ()) -> str:
+    def decide(self, thoughts: Mapping[str, str], memory: Sequence[tuple[float, str]] = ()) -> str:
         """Return the LLM's raw output string."""
 
 
@@ -55,7 +65,7 @@ class GeminiBrain(Brain):
         self.thinking_level = cfg.thinking_level
         self.last_model: str | None = None  # model that actually answered this tick
 
-    def decide(self, state: PetState, memory: Sequence[tuple[float, str]] = ()) -> str:
+    def decide(self, thoughts: Mapping[str, str], memory: Sequence[tuple[float, str]] = ()) -> str:
         """Try the main model, then the fallbacks; switch only on busy / timeout, re-raise anything else."""
         error: Exception | None = None
         self.last_model = None
@@ -63,7 +73,7 @@ class GeminiBrain(Brain):
             try:
                 interaction = self.client.interactions.create(
                     model=model,
-                    input=build_prompt(state, memory),
+                    input=build_prompt(thoughts, memory),
                     response_format={"type": "text", "mime_type": "application/json",
                                      "schema": response_schema()},
                     generation_config={"thinking_level": self.thinking_level},
@@ -94,9 +104,9 @@ def _short(e: Exception) -> str:
 
 
 class MockBrain(Brain):
-    """Fake brain that doesn't call any API: picks a random thought. For testing the loop."""
+    """Fake brain that doesn't call any API: picks a random action. For testing the loop."""
 
     last_model = "mock"
 
-    def decide(self, state: PetState, memory: Sequence[tuple[float, str]] = ()) -> str:
-        return json.dumps({"thought": random.choice(list(THOUGHTS))})
+    def decide(self, thoughts: Mapping[str, str], memory: Sequence[tuple[float, str]] = ()) -> str:
+        return json.dumps({"action": random.choice(list(ACTIONS))})

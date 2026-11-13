@@ -18,10 +18,10 @@ run *args:
 auto seconds="5" *args:
     uv run main.py --auto {{seconds}} --ticks 0 {{args}}
 
-# Debug mode: shows the raw LLM output and the thought -> action step (auto mode, default 5s)
+# Debug mode: shows the prompt sent to the LLM and its raw output (auto mode, default 5s)
 debug seconds="5" *args:
     uv run main.py --debug --auto {{seconds}} --ticks 0 {{args}}
 
-# Test with a fake brain (random thoughts), no API calls (auto mode, default 1s)
+# Test with a fake brain (random actions), no API calls (auto mode, default 1s)
 mock seconds="1" *args:
     uv run main.py --mock --auto {{seconds}} {{args}}

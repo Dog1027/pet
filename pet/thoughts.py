@@ -1,101 +1,97 @@
-"""Thoughts: what the LLM chooses from, and the decision trees that turn a thought into an action.
+"""Thoughts: what the pet is feeling right now, worked out by the program from its stats.
 
-Flow:  stats -> (LLM) thought -> (decision tree, code) action -> (code) stats change
+Flow:  stats -> (code) thoughts -> (LLM) action -> (code) stats change
 
-The LLM only ever sees the list of thought names. Each thought has a decision function
-that receives the current state and returns the name of the action to perform.
-For now every tree maps straight to one action; extend them with conditions later:
+The LLM never sees the numbers. It sees the current thoughts, each with a strength
+(low / medium / high), and picks an action.
 
-    @thought("eat")
-    def decide_eat(state: PetState) -> str:
-        if not has_food():            # your own condition
-            return "ask_for_food"     # any action registered in actions.py
-        return "eat"
+To add a thought, write a function that returns its strength (or None when the pet
+doesn't feel it) and decorate it with @thought("name"):
 
-To add a thought, write a decision function and decorate it with @thought(...).
-The LLM prompt picks it up automatically.
+    @thought("scared")
+    def scared(state: PetState) -> str | None:
+        return "high" if state.health < 10 else None
 """
-import json
-from dataclasses import dataclass
 from typing import Callable
 
-from .actions import ACTIONS
 from .state import PetState
 
-DecideFn = Callable[[PetState], str]
+ThoughtFn = Callable[[PetState], str | None]
+
+THOUGHTS: dict[str, ThoughtFn] = {}  # in the order they are listed to the LLM
 
 
-@dataclass(frozen=True)
-class Thought:
-    name: str            # what the LLM outputs
-    decide: DecideFn     # decision tree: state -> action name
-
-
-THOUGHTS: dict[str, Thought] = {}
-
-
-def thought(name: str) -> Callable[[DecideFn], DecideFn]:
-    """Register a thought and its decision tree."""
-    def register(fn: DecideFn) -> DecideFn:
+def thought(name: str) -> Callable[[ThoughtFn], ThoughtFn]:
+    """Register a thought."""
+    def register(fn: ThoughtFn) -> ThoughtFn:
         if name in THOUGHTS:
             raise ValueError(f"thought {name} is registered twice")
-        THOUGHTS[name] = Thought(name, fn)
+        THOUGHTS[name] = fn
         return fn
     return register
 
 
-# ---------------------------------------------------------------- decision trees
-
-@thought("eat")
-def decide_eat(state: PetState) -> str:
-    return "eat"
-
-
-@thought("sleep")
-def decide_sleep(state: PetState) -> str:
-    return "sleep"
-
-
-@thought("play")
-def decide_play(state: PetState) -> str:
-    return "play"
+def strength(value: int) -> str | None:
+    """How strongly a need is felt, from a 0-100 stat where higher is better."""
+    if value < 20:
+        return "high"
+    if value < 40:
+        return "medium"
+    if value < 60:
+        return "low"
+    return None
 
 
-@thought("bathe")
-def decide_bathe(state: PetState) -> str:
-    return "bathe"
+# ---------------------------------------------------------------- thoughts
+
+@thought("hungry")
+def hungry(state: PetState) -> str | None:
+    return strength(state.fullness)
 
 
-@thought("cuddle")
-def decide_cuddle(state: PetState) -> str:
-    return "seek_attention"
+@thought("tired")
+def tired(state: PetState) -> str | None:
+    return strength(state.energy)
 
 
-@thought("rest")
-def decide_rest(state: PetState) -> str:
-    return "rest"
+@thought("bored")
+def bored(state: PetState) -> str | None:
+    return strength(state.mood)
 
 
-@thought("nothing")
-def decide_nothing(state: PetState) -> str:
-    return "idle"
+@thought("dirty")
+def dirty(state: PetState) -> str | None:
+    return strength(state.cleanliness)
 
 
-# ---------------------------------------------------------------- parse / resolve
-
-def parse(raw: str) -> str | None:
-    """Read the thought name out of the LLM's JSON reply ({"thought": "<name>"}).
-    Returns None if the reply isn't valid JSON or the name isn't in the list."""
-    try:
-        name = json.loads(raw)["thought"]
-    except (ValueError, KeyError, TypeError):
-        return None
-    return name if name in THOUGHTS else None
+@thought("sick")
+def sick(state: PetState) -> str | None:
+    return strength(state.health)
 
 
-def resolve(thought_name: str, state: PetState) -> str:
-    """Run the thought's decision tree and return the action name it picked."""
-    action_name = THOUGHTS[thought_name].decide(state)
-    if action_name not in ACTIONS:
-        raise ValueError(f"thought {thought_name} resolved to unknown action {action_name!r}")
-    return action_name
+@thought("lonely")
+def lonely(state: PetState) -> str | None:
+    return strength(state.social)
+
+
+# ---------------------------------------------------------------- current thoughts / changes
+
+def current_thoughts(state: PetState) -> dict[str, str]:
+    """The thoughts the pet has right now: {name: strength}. Thoughts it doesn't have are left out."""
+    out = {}
+    for name, fn in THOUGHTS.items():
+        level = fn(state)
+        if level:
+            out[name] = level
+    return out
+
+
+def describe_change(before: dict[str, str], after: dict[str, str]) -> str:
+    """How the thoughts changed over a tick, e.g. "hungry high>none,dirty none>low".
+    This is the result text stored in the pet's memory."""
+    changes = [
+        f"{name} {before.get(name, 'none')}>{after.get(name, 'none')}"
+        for name in THOUGHTS
+        if before.get(name) != after.get(name)
+    ]
+    return ",".join(changes) if changes else "no change"
