@@ -12,12 +12,13 @@ from .config import GeminiConfig
 from .state import PetState
 from .thoughts import THOUGHTS
 
-def build_prompt(memory: Sequence[tuple[float, str]] = ()) -> str:
-    """The whole prompt: only the memory of previous ticks. The current stats are not sent.
+def build_prompt(state: PetState, memory: Sequence[tuple[float, str]] = ()) -> str:
+    """The whole prompt: the current stats, then the memory of previous ticks.
     The thought list and the reply format come from response_schema(), not the prompt.
     memory: (seconds ago, text) for each remembered tick, most recent first."""
+    status = ",\n".join(f"{k}: {v}" for k, v in state.to_dict().items())
     mem = "\n".join(f"-{round(age)}s|{text}" for age, text in memory) if memory else "(empty)"
-    return f"Memory:\n{mem}"
+    return f"Status:\n{status}\n\nMemory:\n{mem}"
 
 
 def response_schema() -> dict:
@@ -62,7 +63,7 @@ class GeminiBrain(Brain):
             try:
                 interaction = self.client.interactions.create(
                     model=model,
-                    input=build_prompt(memory),
+                    input=build_prompt(state, memory),
                     response_format={"type": "text", "mime_type": "application/json",
                                      "schema": response_schema()},
                     generation_config={"thinking_level": self.thinking_level},
