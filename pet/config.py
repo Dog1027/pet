@@ -18,8 +18,16 @@ class GeminiConfig:
 @dataclass
 class MemoryConfig:
     time_scale: float = 1.0   # timestamps shown to the LLM = real seconds since the action * this
+    forgetting: str = "chars" # forgetting method: chars / ebbinghaus / llm (see forgetting.py)
+    # chars
     fade_start: float = 0.5   # entries past this share of the memory start losing characters
     fade_max: float = 0.8     # share of characters deleted from the oldest entry
+    # ebbinghaus
+    importance: float = 0.5           # importance given to every entry (higher = remembered longer)
+    retention_threshold: float = 0.3  # retention below this -> the entry turns vague
+    drop_threshold: float = 0.1       # retention below this -> the entry is dropped
+    # llm
+    forget_model: str = "gemma-4-26b-a4b-it"  # model asked to rewrite the memory
 
 
 @dataclass
@@ -49,4 +57,9 @@ def load(path: str | Path = DEFAULT_PATH) -> Config:
     m.time_scale = float(data.get("time_scale", m.time_scale))
     m.fade_start = float(data.get("fade_start", m.fade_start))
     m.fade_max = float(data.get("fade_max", m.fade_max))
+    m.forgetting = data.get("forgetting", m.forgetting)
+    m.importance = float(data.get("importance", m.importance))
+    m.retention_threshold = float(data.get("retention_threshold", m.retention_threshold))
+    m.drop_threshold = float(data.get("drop_threshold", m.drop_threshold))
+    m.forget_model = data.get("forget_model", m.forget_model)
     return cfg

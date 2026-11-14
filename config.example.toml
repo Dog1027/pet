@@ -18,8 +18,24 @@ timeout = 20
 # e.g. 60 makes one real second count as one minute for the pet.
 time_scale = 1.0
 
-# Older memories fade: some characters are deleted.
-# Entries in the first fade_start share of the memory (the most recent ones) stay intact;
+# How older memories are forgotten (--forgetting on the command line overrides this):
+#   chars       older entries lose a growing share of their characters
+#   ebbinghaus  retention decays with time: clear -> vague -> dropped
+#   llm         a model rewrites the memory as the pet remembers it (one extra API call per tick)
+forgetting = "chars"
+
+# chars: entries in the first fade_start share of the memory (the most recent ones) stay intact;
 # after that the deleted share grows linearly, reaching fade_max at the oldest entry.
 fade_start = 0.5
 fade_max = 0.8
+
+# ebbinghaus: retention = exp(-age / (strength * 10)), strength = importance * (1 + ln 2),
+# where age is in the pet's time (real seconds * time_scale).
+# Below retention_threshold an entry turns vague; below drop_threshold it is dropped.
+# With the defaults: vague after about 10s, dropped after about 20s.
+importance = 0.5
+retention_threshold = 0.3
+drop_threshold = 0.1
+
+# llm: the model asked to rewrite the memory
+forget_model = "gemma-4-26b-a4b-it"

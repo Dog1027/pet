@@ -12,11 +12,11 @@ from .actions import ACTIONS
 from .config import GeminiConfig
 
 
-def build_prompt(thought: str, memory: Sequence[tuple[float, str]] = ()) -> str:
+def build_prompt(thought: str, memory: Sequence[str] = ()) -> str:
     """The whole prompt: the pet's current thought, then the memory of previous ticks.
     The action list and the reply format come from response_schema(), not the prompt.
-    memory: (seconds ago, text) per remembered tick, most recent first."""
-    mem = "\n".join(f"-{round(age)}s|{text}" for age, text in memory) if memory else "(empty)"
+    memory: the lines from Memory.recall(), most recent first."""
+    mem = "\n".join(memory) if memory else "(empty)"
     return f"Thought: {thought}\n\nMemory:\n{mem}"
 
 
@@ -41,7 +41,7 @@ def parse(raw: str) -> str | None:
 
 class Brain(ABC):
     @abstractmethod
-    def decide(self, thought: str, memory: Sequence[tuple[float, str]] = ()) -> str:
+    def decide(self, thought: str, memory: Sequence[str] = ()) -> str:
         """Return the LLM's raw output string."""
 
 
@@ -64,7 +64,7 @@ class GeminiBrain(Brain):
         self.thinking_level = cfg.thinking_level
         self.last_model: str | None = None  # model that actually answered this tick
 
-    def decide(self, thought: str, memory: Sequence[tuple[float, str]] = ()) -> str:
+    def decide(self, thought: str, memory: Sequence[str] = ()) -> str:
         """Try the main model, then the fallbacks; switch only on busy / timeout, re-raise anything else."""
         error: Exception | None = None
         self.last_model = None
@@ -107,5 +107,5 @@ class MockBrain(Brain):
 
     last_model = "mock"
 
-    def decide(self, thought: str, memory: Sequence[tuple[float, str]] = ()) -> str:
+    def decide(self, thought: str, memory: Sequence[str] = ()) -> str:
         return json.dumps({"action": random.choice(list(ACTIONS))})

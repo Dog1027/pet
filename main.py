@@ -9,6 +9,7 @@ import time
 from pet import config
 from pet.actions import ACTIONS, apply_action
 from pet.interactions import INTERACTIONS, apply_interaction
+from pet.forgetting import METHODS as FORGETTING_METHODS
 from pet.memory import Memory
 from pet.brain import GeminiBrain, MockBrain, build_prompt, parse
 from pet.renderer import TextRenderer
@@ -27,6 +28,8 @@ def main() -> None:
     p.add_argument("--mock", action="store_true", help="use a fake brain instead of calling the API")
     p.add_argument("--config", default=str(config.DEFAULT_PATH), help="path to the config file")
     p.add_argument("--model", help="override the model in config.toml")
+    p.add_argument("--forgetting", choices=sorted(FORGETTING_METHODS),
+                   help="override the forgetting method in config.toml")
     p.add_argument("--debug", action="store_true",
                    help="debug mode: show the prompt sent to the LLM and its raw output")
     args = p.parse_args()
@@ -34,6 +37,11 @@ def main() -> None:
     cfg = config.load(args.config)
     if args.model:
         cfg.gemini.model = args.model
+    if args.forgetting:
+        cfg.memory.forgetting = args.forgetting
+    if cfg.memory.forgetting not in FORGETTING_METHODS:
+        p.error(f"unknown forgetting method {cfg.memory.forgetting!r} in the config; "
+                f"choose from {sorted(FORGETTING_METHODS)}")
 
     state = PetState()
     brain = MockBrain() if args.mock else GeminiBrain(cfg.gemini)
@@ -45,7 +53,7 @@ def main() -> None:
     print(f"=== {args.name} is born! ===")
     if args.debug:
         models = "mock" if args.mock else f"model={cfg.gemini.model}, fallbacks={cfg.gemini.fallback_models}"
-        print(f"(debug mode: {models})")
+        print(f"(debug mode: {models}, forgetting={cfg.memory.forgetting})")
     if args.auto:
         print(f"(auto mode: a tick every {args.auto:g}s)")
     else:
@@ -53,7 +61,7 @@ def main() -> None:
     ui.show_state(state, {})
 
     tick = 0
-    memory = Memory(MEMORY_SIZE, cfg.memory)
+    memory = Memory(MEMORY_SIZE, cfg.memory, cfg.gemini)
     next_time = time.monotonic()
 
     # Input area: a background thread reads the lines the owner types
