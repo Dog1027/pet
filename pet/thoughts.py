@@ -42,6 +42,7 @@ def need(value: int) -> int:
 
 
 # ---------------------------------------------------------------- thoughts
+# One per need. health has no thought: it is only the consequence of neglect.
 
 @thought("hungry")
 def hungry(state: PetState) -> int:
@@ -51,21 +52,6 @@ def hungry(state: PetState) -> int:
 @thought("tired")
 def tired(state: PetState) -> int:
     return need(state.energy)
-
-
-@thought("bored")
-def bored(state: PetState) -> int:
-    return need(state.mood)
-
-
-@thought("dirty")
-def dirty(state: PetState) -> int:
-    return need(state.cleanliness)
-
-
-@thought("sick")
-def sick(state: PetState) -> int:
-    return need(state.health)
 
 
 @thought("lonely")

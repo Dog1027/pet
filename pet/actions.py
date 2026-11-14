@@ -10,7 +10,7 @@ The LLM's list of choices picks it up automatically.
 
     @action("walk", "Walk", animation="walk", condition=can_walk)
     def walk(state: PetState) -> None:
-        state.apply({"mood": +20, "energy": -10})
+        state.apply({"health": +5, "energy": -10})
 
 The action function receives the current state and can contain any logic
 (conditions, randomness, ...). Use state.apply({...}) to change stats;
@@ -85,24 +85,6 @@ def sleep(state: PetState) -> None:
     state.apply({"energy": +45, "fullness": -10, "social": -5})
 
 
-def can_play(state: PetState) -> bool:
-    return True
-
-
-@action("play", "Play", animation="play", condition=can_play)
-def play(state: PetState) -> None:
-    state.apply({"mood": +25, "energy": -15, "fullness": -10, "cleanliness": -10})
-
-
-def can_bathe(state: PetState) -> bool:
-    return True
-
-
-@action("bathe", "Bathe", animation="bathe", condition=can_bathe)
-def bathe(state: PetState) -> None:
-    state.apply({"cleanliness": +45, "mood": -5, "health": +5})
-
-
 def can_seek_attention(state: PetState) -> bool:
     return True
 
@@ -118,7 +100,7 @@ def can_rest(state: PetState) -> bool:
 
 @action("rest", "Rest", animation="rest", condition=can_rest)
 def rest(state: PetState) -> None:
-    state.apply({"health": +15, "energy": +15, "mood": -5})
+    state.apply({"health": +15, "energy": +15})
 
 
 @action("idle", "Idle", animation="idle")

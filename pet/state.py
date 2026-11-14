@@ -1,4 +1,8 @@
-"""The pet's six stats. Every value ranges from 0 to 100; higher is better."""
+"""The pet's stats. Every value ranges from 0 to 100; higher is better.
+
+fullness, energy and social are needs (each has a thought in thoughts.py).
+health is not a need: it only shows the consequence of neglect, and the pet falls ill at 0.
+"""
 from dataclasses import dataclass, asdict, fields
 
 STAT_MIN, STAT_MAX = 0, 100
@@ -12,8 +16,6 @@ def clamp(v: float) -> int:
 class PetState:
     fullness: int = 70
     energy: int = 70
-    mood: int = 70
-    cleanliness: int = 70
     health: int = 90
     social: int = 60
 

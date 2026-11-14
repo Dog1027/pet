@@ -4,9 +4,9 @@ They take effect immediately, don't use up a tick, and are stored in the pet's m
 
 To add one, write a function and decorate it with @interaction(...):
 
-    @interaction("brush", key="b", label="Brush")
-    def brush(state: PetState) -> None:
-        state.apply({"cleanliness": +15, "mood": +5})
+    @interaction("treat", key="t", label="Treat")
+    def treat(state: PetState) -> None:
+        state.apply({"fullness": +10, "social": +5})
 """
 from dataclasses import dataclass
 from typing import Callable
@@ -46,7 +46,7 @@ def feed(state: PetState) -> None:
 
 @interaction("cuddle", key="c", label="Cuddle")
 def cuddle(state: PetState) -> None:
-    state.apply({"social": +30, "mood": +10})
+    state.apply({"social": +30})
 
 
 # ---------------------------------------------------------------- apply
