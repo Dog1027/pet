@@ -67,13 +67,13 @@ def action(name: str, label: str, *, animation: str,
 # Each action has a can_<name> condition. They all return True for now;
 # fill them in to decide when the action is able to change the stats.
 
-def can_eat(state: PetState) -> bool:
+def can_find_food(state: PetState) -> bool:
     return True
 
 
-@action("eat", "Eat", animation="eat", condition=can_eat)
-def eat(state: PetState) -> None:
-    state.apply({"fullness": +35, "energy": +5, "cleanliness": -5})
+@action("find_food", "Find food", animation="find_food", condition=can_find_food)
+def find_food(state: PetState) -> None:
+    pass  # looking for food changes nothing by itself; the owner's Feed is what fills the pet
 
 
 def can_sleep(state: PetState) -> bool:
@@ -109,7 +109,7 @@ def can_seek_attention(state: PetState) -> bool:
 
 @action("seek_attention", "Cuddle", animation="cuddle", condition=can_seek_attention)
 def seek_attention(state: PetState) -> None:
-    state.apply({"social": +35, "mood": +10, "energy": -5})
+    pass  # asking for attention changes nothing by itself; the owner's Cuddle is what helps
 
 
 def can_rest(state: PetState) -> bool:
