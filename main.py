@@ -15,6 +15,7 @@ from pet.brain import GeminiBrain, MockBrain, build_prompt, parse
 from pet.renderer import TextRenderer
 from pet.state import PetState
 from pet.thoughts import current_thought
+from pet.world import World
 
 MEMORY_SIZE = 10  # how many previous ticks the LLM is shown
 
@@ -44,6 +45,7 @@ def main() -> None:
                 f"choose from {sorted(FORGETTING_METHODS)}")
 
     state = PetState()
+    world = World()
     brain = MockBrain() if args.mock else GeminiBrain(cfg.gemini)
     ui = TextRenderer(args.debug)
 
@@ -58,7 +60,7 @@ def main() -> None:
         print(f"(auto mode: a tick every {args.auto:g}s)")
     else:
         print("(manual mode: press Enter for the next tick)")
-    ui.show_state(state, {})
+    ui.show_state(state, world, {})
 
     tick = 0
     memory = Memory(MEMORY_SIZE, cfg.memory, cfg.gemini)
@@ -82,7 +84,7 @@ def main() -> None:
                 print(f"   (unknown input: {cmd!r})")
             return
         before = current_thought(state)
-        delta = apply_interaction(state, item)
+        delta = apply_interaction(state, world, item)
         memory.add(f"owner_{item.name}", f"{before}>{current_thought(state)}")
         ui.show_interaction(args.name, item, delta)
 
@@ -151,7 +153,7 @@ def main() -> None:
             action_name = parse(raw)
 
             # 3. Action -> stats (code)
-            result = apply_action(state, action_name)
+            result = apply_action(state, world, action_name)
 
             # 4. Remember how the action changed the pet's thought, and display
             if action_name:
@@ -160,7 +162,7 @@ def main() -> None:
                 ui.show_action(args.name, ACTIONS[action_name], result.applied)
             else:
                 ui.show_no_action(args.name, raw)
-            ui.show_state(state, result.delta)
+            ui.show_state(state, world, result.delta)
 
             if state.health == 0:
                 print(f"\n💀 {args.name} has fallen ill...")

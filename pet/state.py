@@ -1,7 +1,8 @@
 """The pet's stats. Every value ranges from 0 to 100; higher is better.
 
 fullness, energy and social are needs (each has a thought in thoughts.py).
-health is not a need: it only shows the consequence of neglect, and the pet falls ill at 0.
+health is not a need: it shows the consequence of neglect. The pet feels sick when it is low
+and falls ill at 0.
 """
 from dataclasses import dataclass, asdict, fields
 

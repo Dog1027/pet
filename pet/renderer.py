@@ -8,6 +8,7 @@ from typing import Iterable
 from .actions import Action
 from .interactions import Interaction
 from .state import PetState
+from .world import BOWL_MAX, World
 
 
 class Renderer(ABC):
@@ -25,10 +26,10 @@ class Renderer(ABC):
         """applied=False: the action's condition blocked its effect this tick."""
 
     @abstractmethod
-    def show_state(self, state: PetState, delta: dict[str, int]) -> None: ...
+    def show_state(self, state: PetState, world: World, delta: dict[str, int]) -> None: ...
 
     def show_interaction(self, pet_name: str, item: Interaction, delta: dict[str, int]) -> None:
-        """The owner did something to the pet; delta is the actual stat change."""
+        """The owner did something; delta is the actual change (stats and world)."""
         pass
 
     def show_input_area(self, items: Iterable[Interaction], manual: bool) -> None:
@@ -68,8 +69,10 @@ class TextRenderer(Renderer):
         print(f"\n🐾 {pet_name} decides to [{action.label}]")
         if not applied:
             print("   ...but it has no effect this time")
-        if self.debug and not applied:
-            print(f"   [debug] condition {action.condition.__name__} returned False")
+        if self.debug:
+            print(f"   [debug] pose={action.pose} prop={action.prop}")
+            if not applied:
+                print(f"   [debug] condition {action.condition.__name__} returned False")
 
     def show_interaction(self, pet_name, item, delta):
         changes = ", ".join(f"{k} {v:+d}" for k, v in delta.items()) or "no change"
@@ -88,8 +91,10 @@ class TextRenderer(Renderer):
         if self.debug:
             print(f"   [debug] model={model} raw={raw.strip()!r}")
 
-    def show_state(self, state, delta):
+    def show_state(self, state, world, delta):
         for k, v in state.to_dict().items():
             d = delta.get(k, 0)
             ds = f"{d:+d}" if d else ""
             print(f"   {k:<12} {_bar(v)} {v:>3} {ds}")
+        d = delta.get("bowl", 0)
+        print(f"   {'bowl':<12} {world.bowl}/{BOWL_MAX} {f'{d:+d}' if d else ''}")

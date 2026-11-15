@@ -42,7 +42,7 @@ def need(value: int) -> int:
 
 
 # ---------------------------------------------------------------- thoughts
-# One per need. health has no thought: it is only the consequence of neglect.
+# One per need, plus sick: health is not a need, but the pet feels it once it gets low.
 
 @thought("hungry")
 def hungry(state: PetState) -> int:
@@ -57,6 +57,14 @@ def tired(state: PetState) -> int:
 @thought("lonely")
 def lonely(state: PetState) -> int:
     return need(state.social)
+
+
+SICK_BELOW = 50  # health is only felt once it drops below this
+
+
+@thought("sick")
+def sick(state: PetState) -> int:
+    return 100 - state.health if state.health < SICK_BELOW else 0
 
 
 # ---------------------------------------------------------------- current thought
