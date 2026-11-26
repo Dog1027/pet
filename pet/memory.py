@@ -1,4 +1,4 @@
-"""The pet's memory of previous ticks, as shown to the LLM.
+"""The pet's memory of previous actions, as shown to the LLM.
 
 Each entry is an action and its result text. Entries are stored complete;
 how they degrade with age is decided by forgetting.py each time they are recalled.
@@ -34,6 +34,7 @@ class Memory:
         """The memory lines as remembered now ("-<seconds ago * time_scale>s|action|result"),
         most recent first."""
         now = time.monotonic()
+        entries = list(self._entries)  # copy first: add() may run in another thread meanwhile
         items = [
             Item(
                 age=(now - e.at) * self.cfg.time_scale,
@@ -42,6 +43,6 @@ class Memory:
                 seed=e.seed,
                 position=(index + 1) / self.size,  # in (0, 1]; 1 = the oldest slot
             )
-            for index, e in enumerate(reversed(self._entries))
+            for index, e in enumerate(reversed(entries))
         ]
         return forget(items, self.cfg, self.gemini)

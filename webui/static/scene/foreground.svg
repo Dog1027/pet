@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900">
+  <!-- In front of the pet. Clicks pass through it (pointer-events: none). It may cover the
+       front edge of the floor (the grid ends at y 797) a little. -->
+  <defs>
+    <g id="bush">
+      <path d="M-110 40 Q-130 -10 -80 -24 Q-70 -70 -20 -60 Q10 -96 52 -66 Q100 -78 104 -28 Q140 -10 118 40 Z"
+            fill="#b6dcb4" stroke="#8cbf8f" stroke-width="4" stroke-linejoin="round"/>
+      <path d="M-60 -20 Q-40 -40 -14 -32" fill="none" stroke="#d2ecd0" stroke-width="7" stroke-linecap="round"/>
+    </g>
+    <g id="tuft">
+      <path d="M-26 0 Q-24 -24 -12 -40 Q-10 -20 -6 0 Z M-8 0 Q-4 -34 6 -52 Q8 -26 10 0 Z M8 0 Q14 -26 28 -36 Q22 -16 24 0 Z"
+            fill="#a9d6a2" stroke="#86bb85" stroke-width="3" stroke-linejoin="round"/>
+    </g>
+    <g id="flower">
+      <g fill="#ffd3dd" stroke="#e39aab" stroke-width="2">
+        <circle cx="0" cy="-8" r="7"/><circle cx="8" cy="0" r="7"/><circle cx="0" cy="8" r="7"/><circle cx="-8" cy="0" r="7"/>
+      </g>
+      <circle r="5" fill="#ffd77a" stroke="#d9a94a" stroke-width="1.6"/>
+    </g>
+  </defs>
+
+  <!-- bushes in the bottom corners -->
+  <use href="#bush" transform="translate(70 880) scale(1.25)"/>
+  <use href="#bush" transform="translate(1135 885) scale(1.35)"/>
+  <use href="#flower" transform="translate(40 815)"/>
+  <use href="#flower" transform="translate(1100 812) scale(.9)"/>
+  <use href="#flower" transform="translate(1170 840) scale(.7)"/>
+
+  <!-- grass along the front edge -->
+  <g>
+    <use href="#tuft" transform="translate(205 900) scale(1.2)"/>
+    <use href="#tuft" transform="translate(300 905)"/>
+    <use href="#tuft" transform="translate(420 900) scale(1.3)"/>
+    <use href="#tuft" transform="translate(560 905) scale(.9)"/>
+    <use href="#tuft" transform="translate(690 900) scale(1.2)"/>
+    <use href="#tuft" transform="translate(820 905)"/>
+    <use href="#tuft" transform="translate(960 900) scale(1.3)"/>
+    <use href="#tuft" transform="translate(140 885) scale(.9)"/>
+    <use href="#tuft" transform="translate(1040 890) scale(.9)"/>
+  </g>
+</svg>

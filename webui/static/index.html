@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>pet</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <header>
+      <h1 id="name">…</h1>
+      <span id="age" class="muted"></span>
+    </header>
+
+    <!-- The scene, back to front: the background picture (its strip of light grass is the
+         floor), the pet and the food on the invisible grid over it, the foreground picture.
+         Click the pet to cuddle it, click the floor to put food there. -->
+    <section id="world">
+      <div class="floor-zone"></div>
+      <div id="grid">
+        <div id="items"></div>
+        <div id="pet" title="Cuddle"></div>
+      </div>
+      <img class="scene-front" src="scene/foreground.svg" alt="">
+    </section>
+    <p class="hint muted">Click the pet to cuddle it · click the grass to put food there <span id="error"></span></p>
+  </main>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

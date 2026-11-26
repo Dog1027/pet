@@ -10,18 +10,18 @@ sync:
 init:
     @[ -f config.toml ] && echo "config.toml already exists" || (cp config.example.toml config.toml && echo "Created config.toml; fill in api_key")
 
-# Manual mode (press Enter for each tick); extra args allowed, e.g. just run --ticks 0
-run *args:
-    uv run main.py {{args}}
+# Web UI at http://localhost:<port> (listens on 0.0.0.0), default port 8000; e.g. just web 9000 --mock
+web port="8000" *args:
+    uv run -m webui --port {{port}} {{args}}
 
-# Auto mode: a tick every N seconds, forever (default 5s)
-auto seconds="5" *args:
-    uv run main.py --auto {{seconds}} --ticks 0 {{args}}
+# Web UI in debug mode: the log also shows the prompts and the model's raw replies
+debug port="8000" *args:
+    uv run -m webui --port {{port}} --debug {{args}}
 
-# Debug mode: shows the prompt sent to the LLM and its raw output (auto mode, default 5s)
-debug seconds="5" *args:
-    uv run main.py --debug --auto {{seconds}} --ticks 0 {{args}}
+# Web UI with a fake brain (random actions), no model calls
+mock port="8000" *args:
+    uv run -m webui --port {{port}} --mock {{args}}
 
-# Test with a fake brain (random actions), no API calls (auto mode, default 1s)
-mock seconds="1" *args:
-    uv run main.py --mock --auto {{seconds}} {{args}}
+# Cut design.png (five poses without eyes + a column of eyes) into the pet's still images; e.g. just sprites --preview check.png
+sprites *args:
+    uv run --with pillow --with numpy --with scipy python -m webui.slice_poses design.png {{args}}

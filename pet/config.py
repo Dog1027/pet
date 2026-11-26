@@ -16,6 +16,13 @@ class GeminiConfig:
 
 
 @dataclass
+class OllamaConfig:
+    host: str = "http://localhost:11434"
+    model: str = "hf.co/AtomicChat/Inkling-2-Mini-Uncensored-GGUF:IQ3_S"
+    timeout: float = 30.0        # max seconds to wait per request (the first one also loads the model)
+
+
+@dataclass
 class MemoryConfig:
     time_scale: float = 1.0   # timestamps shown to the LLM = real seconds since the action * this
     forgetting: str = "chars" # forgetting method: chars / ebbinghaus / llm (see forgetting.py)
@@ -32,6 +39,8 @@ class MemoryConfig:
 
 @dataclass
 class Config:
+    brain: str = "ollama"     # which model picks the actions: ollama / gemini
+    ollama: OllamaConfig = field(default_factory=OllamaConfig)
     gemini: GeminiConfig = field(default_factory=GeminiConfig)
     memory: MemoryConfig = field(default_factory=MemoryConfig)
 
@@ -43,6 +52,14 @@ def load(path: str | Path = DEFAULT_PATH) -> Config:
         return cfg
     with path.open("rb") as f:
         doc = tomllib.load(f)
+
+    cfg.brain = doc.get("brain", cfg.brain)
+
+    data = doc.get("ollama", {})
+    o = cfg.ollama
+    o.host = data.get("host", o.host).rstrip("/")
+    o.model = data.get("model", o.model)
+    o.timeout = float(data.get("timeout", o.timeout))
 
     data = doc.get("gemini", {})
     g = cfg.gemini

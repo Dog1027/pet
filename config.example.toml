@@ -1,6 +1,15 @@
 # Copy to config.toml and fill in your key: just init (or cp config.example.toml config.toml)
 # config.toml is in .gitignore and won't be committed
 
+# Which model picks the pet's actions: "ollama" (local, [ollama] below) or "gemini" ([gemini] below)
+brain = "ollama"
+
+[ollama]
+host = "http://localhost:11434"
+model = "hf.co/AtomicChat/Inkling-2-Mini-Uncensored-GGUF:IQ3_S"
+# Max seconds to wait per request (the first request also loads the model into memory)
+timeout = 30
+
 [gemini]
 # Leave empty to read the GEMINI_API_KEY / GOOGLE_API_KEY environment variable instead
 api_key = ""
@@ -21,7 +30,7 @@ time_scale = 1.0
 # How older memories are forgotten (--forgetting on the command line overrides this):
 #   chars       older entries lose a growing share of their characters
 #   ebbinghaus  retention decays with time: clear -> vague -> dropped
-#   llm         a model rewrites the memory as the pet remembers it (one extra API call per tick)
+#   llm         a model rewrites the memory as the pet remembers it (one extra API call per decision)
 forgetting = "chars"
 
 # chars: entries in the first fade_start share of the memory (the most recent ones) stay intact;

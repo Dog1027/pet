@@ -1,100 +1,51 @@
-"""Display layer. Text for now; to switch to graphics later, implement a new Renderer.
-The main loop doesn't need to change."""
-import sys
+"""Display layer. The engine (engine.py) calls these as things happen.
+A display implements its own Renderer (see webui/server.py)."""
 from abc import ABC, abstractmethod
-
-from typing import Iterable
+from typing import Sequence
 
 from .actions import Action
 from .interactions import Interaction
 from .state import PetState
-from .world import BOWL_MAX, World
+from .world import World
 
 
 class Renderer(ABC):
-    def begin_tick(self, tick: int) -> None:
-        """Called at the start of every tick."""
-        pass
-
     @abstractmethod
     def show_thought(self, thought: str) -> None:
-        """What is on the pet's mind this tick."""
-        pass
+        """The pet starts thinking about its next action; this is what is on its mind."""
+
+    def show_prompt(self, thought: str, memory: Sequence[str]) -> None:
+        """What is about to be sent to the LLM (debug displays only)."""
+
+    def show_debug(self, model: str | None, raw: str) -> None:
+        """What the LLM actually returned (debug displays only)."""
 
     @abstractmethod
-    def show_action(self, pet_name: str, action: Action, applied: bool = True) -> None:
-        """applied=False: the action's condition blocked its effect this tick."""
+    def show_action(self, pet_name: str, action: Action, chosen_by: str) -> None:
+        """The pet starts an action. chosen_by: who picked it (the previous action's name,
+        "reflex: ...", "llm" or "owner_<interaction>")."""
 
-    @abstractmethod
-    def show_state(self, state: PetState, world: World, delta: dict[str, int]) -> None: ...
-
-    def show_interaction(self, pet_name: str, item: Interaction, delta: dict[str, int]) -> None:
-        """The owner did something; delta is the actual change (stats and world)."""
-        pass
-
-    def show_input_area(self, items: Iterable[Interaction], manual: bool) -> None:
-        """Show what the owner can type. manual=True: Enter runs the next tick."""
-        pass
+    def show_action_done(self, pet_name: str, action: Action, interrupted: bool = False) -> None:
+        """The action has finished, or (interrupted=True) an owner interaction cut it short."""
 
     @abstractmethod
     def show_no_action(self, pet_name: str, raw: str) -> None:
-        """The LLM's reply wasn't an action from the list, so nothing happens this tick."""
+        """The LLM's reply wasn't an action from the list; the pet will ask again shortly."""
 
-    def show_debug(self, model: str | None, raw: str) -> None:
-        """Debug mode only: what the LLM actually returned."""
-        pass
+    def show_interaction(self, pet_name: str, item: Interaction, delta: dict[str, float]) -> None:
+        """The owner did something; delta is the actual change (stats and world)."""
+
+    def show_state(self, state: PetState, world: World, delta: dict[str, float]) -> None:
+        """Called after the owner interacts; delta is what that changed."""
+
+    def show_note(self, text: str) -> None:
+        """Anything else worth telling (errors, the pet falling ill)."""
 
 
-def _bar(v: int, width: int = 20) -> str:
-    n = round(v / 100 * width)
-    return "█" * n + "░" * (width - n)
+def signed(v: float) -> str:
+    """+1 for whole numbers (positions), +3.6 for the rest."""
+    return f"{v:+d}" if isinstance(v, int) else f"{v:+.1f}"
 
 
-class TextRenderer(Renderer):
-    def __init__(self, debug: bool = False):
-        self.debug = debug
-        # Normal mode keeps only the current tick on screen; debug mode keeps the full history.
-        # Only clear on a real terminal, so piped output / logs stay readable.
-        self.clear_each_tick = not debug and sys.stdout.isatty()
-
-    def begin_tick(self, tick):
-        if self.clear_each_tick:
-            print("\033[2J\033[H", end="")  # clear screen, cursor to top-left
-        print(f"\n--- Tick {tick} ---")
-
-    def show_thought(self, thought):
-        print(f"   thought: {thought}")
-
-    def show_action(self, pet_name, action, applied=True):
-        print(f"\n🐾 {pet_name} decides to [{action.label}]")
-        if not applied:
-            print("   ...but it has no effect this time")
-        if self.debug:
-            print(f"   [debug] pose={action.pose} prop={action.prop}")
-            if not applied:
-                print(f"   [debug] condition {action.condition.__name__} returned False")
-
-    def show_interaction(self, pet_name, item, delta):
-        changes = ", ".join(f"{k} {v:+d}" for k, v in delta.items()) or "no change"
-        print(f"   🧑 You [{item.label}] {pet_name}: {changes}")
-
-    def show_input_area(self, items, manual):
-        options = [f"[{i.key}] {i.label}" for i in items] + ["[q] Quit"]
-        if manual:
-            options.insert(0, "[Enter] Next tick")
-        print("\n" + "  ".join(options) + " > ", end="", flush=True)
-
-    def show_no_action(self, pet_name, raw):
-        print(f"\n🐾 {pet_name} does nothing (unusable reply: {raw.strip()!r})")
-
-    def show_debug(self, model, raw):
-        if self.debug:
-            print(f"   [debug] model={model} raw={raw.strip()!r}")
-
-    def show_state(self, state, world, delta):
-        for k, v in state.to_dict().items():
-            d = delta.get(k, 0)
-            ds = f"{d:+d}" if d else ""
-            print(f"   {k:<12} {_bar(v)} {v:>3} {ds}")
-        d = delta.get("bowl", 0)
-        print(f"   {'bowl':<12} {world.bowl}/{BOWL_MAX} {f'{d:+d}' if d else ''}")
+def changes(delta: dict[str, float]) -> str:
+    return ", ".join(f"{k} {signed(v)}" for k, v in delta.items()) or "no change"
