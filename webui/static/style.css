@@ -2,7 +2,7 @@
   color-scheme: light dark;
   --bg: #f6f4ef; --panel: #fff; --text: #22201c; --muted: #8a857c; --line: #e4e0d8;
   --accent: #c2703d; --good: #3f8f5a; --bad: #c0463b; --fill: #6b9bd1;
-  --floor-edge: #b9b0a0; --pet: #f8efdf; --pet-inner: #f3c1bb; --pet-line: #6e4c3d; --pet-blush: #f2aaa6;
+  --floor-edge: #b9b0a0;
 }
 @media (prefers-color-scheme: dark) {
   :root { --bg: #1b1a18; --panel: #24231f; --text: #ece8e1; --muted: #8f8a82; --line: #36342f;
@@ -29,6 +29,12 @@ h2 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing
   border-radius: 16px;
   background: #e6f2e6 url("scene/background.svg") center / 100% 100% no-repeat;
 }
+/* Clicking the pet or the grass is a game action, not a selection: no tap flash on phones,
+   no blue selection when clicking quickly, no dragging the pictures */
+#world, #world * {
+  -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none;
+  -webkit-user-drag: none; outline: none;
+}
 #world.fallen { filter: grayscale(.8); }
 #grid {
   --cell: calc(100cqw / var(--cols, 16));  /* one cell's width */
@@ -50,20 +56,16 @@ h2 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing
 /* Standing things: anchored at the cell's centre, growing upward */
 .item > *, #pet > * { position: absolute; left: 50%; bottom: 50%; translate: -50% 0; }
 .item .item-icon { font-size: calc(var(--cell) * .8 * var(--size, 1)); line-height: 1; translate: -50% 12%; }
-.item .item-svg { width: calc(var(--cell) * 1.1 * var(--size, 1)); aspect-ratio: 1; overflow: visible; translate: -50% 18%; }
+.item .item-svg { width: calc(var(--cell) * 1.7); aspect-ratio: 1; overflow: visible; translate: -50% 18%; }
 .shadow {
   bottom: auto !important; top: 50%; translate: -50% -50% !important;
   width: calc(var(--pet-size) * .38); height: calc(var(--pet-size) * .38 * var(--squash) * .7);
   border-radius: 50%; background: rgb(0 0 0 / .2);
 }
 
-/* ---- the pet (drawn by pet-view.js: an SVG 120 x 100 standing on y = 96) */
+/* ---- the pet (pet-view.js: a PNG body in a 6:5 box, standing 4% from its bottom, with the
+   face and floating symbols drawn over it) */
 #pet { pointer-events: none; z-index: 100; transition: left 1s linear, top 1s linear; }  /* behind all the food */
-.pet-svg {
-  width: var(--pet-size); aspect-ratio: 120 / 100; translate: -50% 4% !important;
-  overflow: visible; cursor: pointer; pointer-events: visiblePainted;
-}
-/* PNG sprites: same 6:5 box and standing point (4% from the bottom) as the SVG */
 .pet-sprite {
   width: var(--pet-size); aspect-ratio: 6 / 5; translate: -50% 4% !important;
   cursor: pointer; pointer-events: auto;
@@ -85,48 +87,46 @@ h2 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing
 .sprite-layers img { object-fit: contain; pointer-events: none; user-select: none; -webkit-user-drag: none; }
 .sprite-symbols { overflow: visible; pointer-events: none; }
 .pet-sprite:hover .sprite-layers { filter: brightness(1.06); }
-.pet-svg:hover .pet-figure { filter: brightness(1.06); }
-.pet-figure { transform-box: view-box; transform-origin: 60px 96px; }
-.p-body  { fill: var(--pet); stroke: var(--pet-line); stroke-width: 2.2; stroke-linejoin: round; }
-.p-inner { fill: var(--pet-inner); }
-.p-fluff { fill: var(--pet); stroke: var(--pet-line); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
-.p-tail circle { fill: var(--pet); stroke: var(--pet-line); stroke-width: 1.6; }
-.p-eye   { fill: #3a2a22; }
-.p-line  { fill: none; stroke: #3a2a22; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
-.p-line.thin { stroke-width: 1.5; }
-.p-blush { fill: var(--pet-blush); opacity: .75; }
-.p-nose  { fill: #ef9a9a; stroke: #c06d6d; stroke-width: .8; }
-.p-teeth { fill: #fff; stroke: #3a2a22; stroke-width: 1; stroke-linejoin: round; }
-.pet-svg.ill .p-body, .pet-svg.ill .p-fluff, .pet-svg.ill .p-tail circle { fill: #cfc8bf; }
-.pet-svg.ill { filter: saturate(.3); }
 
+/* floating symbols: rise from above the head and fade, one after another */
 .p-sym { pointer-events: none; }
-.p-ball { fill: #f4d03f; stroke: #8a6d00; stroke-width: 1.6; }
-.p-ball-stripe { fill: none; stroke: #e74c3c; stroke-width: 2.4; }
-
-/* animations: whole-pet classes on .pet-svg, part classes inside it */
-.pet-svg.a-hop .pet-figure    { animation: hop .55s ease-in-out infinite; }
-.pet-svg.a-bounce .pet-figure { animation: hop .4s ease-in-out infinite; }
-.pet-svg.a-breathe .pet-figure { animation: breathe 2.6s ease-in-out infinite; }
-.pet-svg.a-chew .pet-figure   { animation: chew .5s ease-in-out infinite; }
-.pet-svg.a-squish .pet-figure { animation: squish 1.2s ease-in-out infinite; }
-.pet-svg.a-stretch .pet-figure { animation: stretch 1.1s ease-in-out infinite; }
-.pet-svg.a-sway .pet-figure   { animation: sway 1.4s ease-in-out infinite; }
 .a-rise { animation: rise 2.1s ease-out infinite; opacity: 0; }
-.a-ball { animation: ball .4s ease-in infinite alternate; }
-/* a ball's bounce: squashed on the ground, stretched on the way up and down, round at the top */
-@keyframes hop     { 0%, 100% { transform: scale(1.12, .86); animation-timing-function: ease-out; }
-                     30% { transform: translateY(-8px) scale(.92, 1.1); }
-                     50% { transform: translateY(-12px) scale(1, 1); animation-timing-function: ease-in; }
-                     75% { transform: translateY(-5px) scale(.94, 1.07); } }
-@keyframes stretch { 50% { transform: scale(.9, 1.14); } }
-@keyframes sway    { 25% { transform: rotate(-6deg); } 75% { transform: rotate(6deg); } }
-@keyframes breathe { 50% { transform: scale(1.03, .96); } }
-@keyframes chew    { 50% { transform: translateY(2px) scale(1.02, .98); } }
-@keyframes squish  { 50% { transform: scale(1.08, .9); } }
 @keyframes rise    { 0% { opacity: 0; transform: translateY(0); } 25% { opacity: 1; }
                      100% { opacity: 0; transform: translateY(-18px); } }
-@keyframes ball    { from { transform: translateY(0); } to { transform: translateY(-14px); } }
+
+/* fallen ill: a card in the middle of the scene with the restart button */
+.stage { position: relative; }
+#fallen {
+  position: absolute; inset: 0; z-index: 3; display: grid; place-content: center; gap: 12px;
+  text-align: center; background: rgb(40 36 30 / .25); border-radius: 16px; cursor: default;
+}
+#fallen[hidden] { display: none; }
+/* the naming card, over the empty meadow */
+#naming {
+  position: absolute; left: 50%; top: 50%; translate: -50% -50%; z-index: 3; width: min(360px, 80%);
+  display: grid; gap: 12px; justify-items: center; text-align: center; padding: 22px 24px;
+  border-radius: 18px; background: rgb(255 250 242 / .95); box-shadow: 0 6px 24px rgb(0 0 0 / .18);
+  color: #4a3a30;
+}
+#naming[hidden] { display: none; }
+#naming p { margin: 0; font-size: 17px; }
+#naming input {
+  width: 100%; font: inherit; font-size: 18px; text-align: center; padding: 8px 12px;
+  border: 2px solid #d9c9b4; border-radius: 12px; background: #fff; color: #3a2a22; outline: none;
+}
+#naming input:focus { border-color: #f4a24a; }
+#fallen p {
+  margin: 0; padding: 10px 18px; border-radius: 12px; font-size: 18px; color: #4a3a30;
+  background: rgb(255 250 242 / .92); box-shadow: 0 4px 14px rgb(0 0 0 / .15);
+}
+/* the two buttons: "Welcome!" on the naming card, "Start over" once fallen ill */
+#naming button, #restart {
+  justify-self: center; font: inherit; font-size: 17px; font-weight: 600; padding: 10px 28px;
+  border-radius: 999px; border: 2px solid #6e4c3d; background: #f4a24a; color: #fffaf2;
+  box-shadow: 0 3px 0 #6e4c3d; cursor: pointer;
+}
+#naming button:hover, #restart:hover { background: #f7b062; }
+#naming button:active, #restart:active { translate: 0 2px; box-shadow: 0 1px 0 #6e4c3d; }
 
 .hint { margin: 6px 0 0; text-align: center; }
 #error { color: var(--bad); margin-left: 8px; }

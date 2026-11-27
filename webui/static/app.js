@@ -19,14 +19,45 @@ async function api(path, body) {
 
 // ---------------------------------------------------------------- drawing
 
+// How long the pet has lived, in words: 「出生 2 分 15 秒」
+function age(seconds) {
+  const s = Math.floor(seconds), m = Math.floor(s / 60), h = Math.floor(m / 60);
+  if (h) return `出生 ${h} 小時 ${m % 60} 分`;
+  if (m) return `出生 ${m} 分 ${s % 60} 秒`;
+  return `出生 ${s} 秒`;
+}
+
 function render(s) {
   last = s;
-  document.title = `${s.name} · pet`;
+  $("naming").hidden = s.named;
+  if (!s.named) {  // no pet yet: an empty meadow and the naming card
+    document.title = "寵物";
+    $("name").textContent = "";
+    $("age").textContent = "";
+    $("fallen").hidden = true;
+    $("items").replaceChildren();
+    $("pet").replaceChildren();
+    delete $("pet").dataset.look;
+    $("world").classList.remove("fallen");
+    const input = $("pet-name");
+    if (!input.dataset.ready) {  // set up once per card, so typing isn't overwritten by polls
+      input.dataset.ready = "1";
+      input.maxLength = s.name_max;
+      input.placeholder = s.suggested_name;
+      input.value = "";
+      setTimeout(() => input.focus(), 0);
+    }
+    return;
+  }
+  delete $("pet-name").dataset.ready;
+  document.title = `${s.name} · 寵物`;
   $("name").textContent = s.name;
-  $("age").textContent = `${Math.floor(s.age)}s old`;
+  $("age").textContent = age(s.age);
 
 
   drawWorld(s);
+  $("fallen").hidden = s.alive;
+  $("fallen-name").textContent = s.name;
 }
 
 function drawWorld(s) {
@@ -46,7 +77,7 @@ function drawWorld(s) {
     el.className = `item item-${i.kind}`;
     el.style.setProperty("--x", i.x);
     el.style.setProperty("--y", i.y);
-    el.title = `${i.kind} ${i.amount.toFixed(0)} at (${i.x}, ${i.y})`;
+    el.title = `紅蘿蔔（剩 ${Math.round((i.amount / 30) * 100)}%）`;
     drawItem(el, i);
     items.append(el);
   }
@@ -57,7 +88,7 @@ function drawWorld(s) {
   lastX = w.x;
   pet.style.setProperty("--x", w.x);
   pet.style.setProperty("--y", w.y);
-  pet.title = s.alive ? `${s.name} at (${w.x}, ${w.y}) · click to cuddle` : `${s.name} has fallen ill`;
+  pet.title = s.alive ? `${s.name} · 點一下摸摸牠` : `${s.name} 生病倒下了`;
   drawPet(pet, { ...s.look, facing });
 }
 
@@ -68,7 +99,7 @@ function interactionKey(name) {
 }
 
 async function act(body) {
-  if (busy || !last?.alive) return;
+  if (busy || !last?.named || !last.alive) return;
   busy = true;
   try { render(await api("/api/interact", body)); $("error").textContent = ""; }
   catch (e) { $("error").textContent = e.message; }
@@ -98,9 +129,39 @@ $("world").addEventListener("click", (ev) => {
   act({ key, x, y });
 });
 
+// Naming the new pet: an empty name takes the suggested one
+$("naming").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  if (busy) return;
+  const input = $("pet-name");
+  const name = input.value.trim() || input.placeholder;
+  busy = true;
+  try {
+    lastX = null;
+    facing = "right";
+    render(await api("/api/start", { name }));
+    $("error").textContent = "";
+  } catch (e) { $("error").textContent = e.message; }
+  finally { busy = false; }
+});
+
+// Fallen ill: start over with a new pet (named again)
+$("restart").addEventListener("click", async (ev) => {
+  ev.stopPropagation();
+  if (busy) return;
+  busy = true;
+  try {
+    lastX = null;
+    facing = "right";
+    render(await api("/api/restart", {}));
+    $("error").textContent = "";
+  } catch (e) { $("error").textContent = e.message; }
+  finally { busy = false; }
+});
+
 async function poll() {
   try { if (!busy) render(await api("/api/state")); $("error").textContent = ""; }
-  catch (e) { $("error").textContent = "can't reach the server"; }
+  catch (e) { $("error").textContent = "連不上伺服器"; }
   setTimeout(poll, POLL_MS);
 }
 

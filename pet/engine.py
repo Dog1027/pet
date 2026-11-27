@@ -10,7 +10,9 @@ A host (the web UI) creates an Engine and calls step() about once a second. Each
         1. the finished action's `then` (actions.py)
         2. a reflex: a stat that is too low picks a set action (reflexes.py)
         3. the LLM, from the pet's thought and memory
-  - the LLM is asked in a background thread; while it thinks no action runs, so nothing changes
+  - the LLM is asked in a background thread. While it thinks (or waits to ask again after a
+    bad reply) no action runs, but the pet still lives: it pays the cost of living
+    (actions.living: hunger, tiredness, loneliness, health lost to neglect) and can fall ill
 Owner interactions (interact()) take effect at once, whatever the pet is doing. An interaction
 with an action (e.g. cuddle -> "cuddled") interrupts the running action, which ends there without
 running `then`, and the pet starts the interaction's action.
@@ -22,8 +24,8 @@ import threading
 import time
 from dataclasses import dataclass
 
-from .actions import ACTIONS, Action, Step
-from .brain import Brain, parse
+from .actions import ACTIONS, Action, Step, living
+from .brain import Brain, build_prompt, parse
 from .config import Config
 from .interactions import INTERACTIONS, apply_interaction
 from .memory import Memory
@@ -45,6 +47,8 @@ class Running:
     thought: str          # the pet's thought when it started
     chosen_by: str        # who picked it: the action whose `then` did, "reflex: ...", "llm",
                           # or "owner_<interaction>"
+    before: dict = None   # the stats when it started (for the action's result)
+    owner: list = None    # owner interactions while it ran ("feed", "cuddle")
     elapsed: float = 0.0  # seconds done so far
 
     @property
@@ -69,6 +73,7 @@ class Engine:
         self.running: Running | None = None
         self.thinking = False                    # a brain call is in progress
         self.next_decision_at = 0.0              # age at which the pet may ask the LLM again
+        self.last_chosen_by: str | None = None   # who picked the action that ended last
         self.rates: dict[str, float] = {}        # change per second during the last step
         self._last_step: float | None = None     # time.monotonic() of the last step
 
@@ -85,19 +90,38 @@ class Engine:
             self.age += dt
             if self.running is not None and dt > 0:
                 self._run(dt)
-            elif self.running is None:
-                self.rates = {}
+            elif self.running is None and dt > 0:
+                self._wait(dt)
             if self.alive and self.running is None and not self.thinking:
                 self._pick_without_then()
 
     def _pick_without_then(self) -> None:
-        """No action is running and no `then` picked one: a reflex, or else the LLM."""
+        """No action is running and no `then` picked one: a reflex, or else the LLM.
+        A reflex doesn't fire twice in a row: after it, the LLM gets the next pick, so a reflex
+        that didn't help (scavenge with no food anywhere) can't keep the pet from trying
+        something else."""
         reflex = reflex_action(self.state)
-        if reflex is not None:
-            action, r = reflex
-            self._start(action, chosen_by=f"reflex: {r.stat} < {r.below:g}")
+        by = reflex and f"reflex: {reflex[1].stat} < {reflex[1].below:g}"
+        if reflex is not None and by != self.last_chosen_by:
+            self._start(reflex[0], chosen_by=by)
         elif self.age >= self.next_decision_at:
             self._start_thinking()
+
+    def _wait(self, dt: float) -> None:
+        """No action running (thinking, or waiting to ask again): the cost of living still applies."""
+        before = self.state.to_dict()
+        self.state.apply(living(self.state, Step(0.0, dt, dt)))
+        self.rates = {k: v / dt for k, v in diff(before, self.state.to_dict()).items()}
+        self._check_ill()
+
+    def _check_ill(self) -> bool:
+        """Fall ill if health is gone. True if the pet just fell ill."""
+        if self.state.health > 0:
+            return False
+        self.alive = False
+        self.running = None
+        self.ui.show_note(f"💀 {self.name} has fallen ill...")
+        return True
 
     def _run(self, dt: float) -> None:
         """Run the current action for dt seconds (or what is left of it)."""
@@ -110,10 +134,8 @@ class Engine:
         r.elapsed = step.end
         self.rates = {k: v / seconds for k, v in diff(before, self.state.to_dict()).items()}
 
-        if self.state.health == 0:
-            self.alive = False
-            self.running = None
-            self.ui.show_note(f"💀 {self.name} has fallen ill...")
+        if self._check_ill():
+            pass
         elif r.remaining == 0 or r.action.should_stop(self.state, self.world):
             self._finish()
             nxt = r.action.next_action(self.state, self.world)
@@ -126,12 +148,16 @@ class Engine:
     def _finish(self, interrupted: bool = False, thought_after: str | None = None) -> None:
         r = self.running
         self.running = None
+        self.last_chosen_by = r.chosen_by
         label = r.action.name + (" (interrupted)" if interrupted else "")
+        if r.action.result is not None:  # what came of it: "scavenge: found nothing"
+            label += f": {r.action.result(r.before, self.state, self.world, r.owner)}"
         self.memory.add(label, f"{r.thought}>{thought_after or current_thought(self.state)}")
         self.ui.show_action_done(self.name, r.action, interrupted)
 
     def _start(self, action: Action, chosen_by: str) -> None:
-        self.running = Running(action, current_thought(self.state), chosen_by)
+        self.running = Running(action, current_thought(self.state), chosen_by,
+                               before=self.state.to_dict(), owner=[])
         self.ui.show_action(self.name, action, chosen_by)
 
     # ------------------------------------------------------------ the LLM
@@ -145,9 +171,10 @@ class Engine:
     def _think(self, thought: str) -> None:
         """Background thread: ask the LLM, then start the action it picked."""
         recalled = self.memory.recall()
-        self.ui.show_prompt(thought, recalled)
+        prompt = build_prompt(thought, recalled)
+        self.ui.show_prompt(prompt)
         try:
-            raw = self.brain.decide(thought, recalled)
+            raw = self.brain.decide(prompt)
             error = None
         except Exception as e:  # API errors (network, key, quota, ...) shouldn't stop the pet
             raw, error = "", e
@@ -177,6 +204,8 @@ class Engine:
         with self.lock:
             before = current_thought(self.state)
             delta = apply_interaction(self.state, self.world, item, **options)  # may raise: nothing changed
+            if self.running is not None:
+                self.running.owner.append(item.name)  # for the running action's result
             if item.action is not None and self.running is not None:
                 self._finish(interrupted=True, thought_after=before)  # how it was when interrupted
             self.memory.add(f"owner_{item.name}", f"{before}>{current_thought(self.state)}")

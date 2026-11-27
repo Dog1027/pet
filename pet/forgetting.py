@@ -5,6 +5,7 @@ and gets back the lines shown to the LLM. Which method runs is chosen by
 [memory] forgetting in config.toml, or --forgetting on the command line.
 
 Methods:
+    none        remembers everything as it was (the default)
     chars       deletes a growing share of the result's characters in older entries
     ebbinghaus  retention curve over time: clear -> vague -> dropped (ebbinghaus.py)
     llm         asks a model ([memory] forget_model) to rewrite the memory as the pet remembers it
@@ -60,6 +61,14 @@ def forget(items: Sequence[Item], cfg: MemoryConfig, gemini: GeminiConfig) -> li
     if cfg.forgetting not in METHODS:
         raise ValueError(f"unknown forgetting method {cfg.forgetting!r}; choose from {sorted(METHODS)}")
     return METHODS[cfg.forgetting](items, cfg, gemini)
+
+
+# ---------------------------------------------------------------- none
+
+@method("none")
+def forget_nothing(items: Sequence[Item], cfg: MemoryConfig, gemini: GeminiConfig) -> list[str]:
+    """Remember every stored entry exactly as it was (the default)."""
+    return [line(item.age, item.action, item.result) for item in items]
 
 
 # ---------------------------------------------------------------- chars
@@ -121,7 +130,7 @@ def forget_ebbinghaus(items: Sequence[Item], cfg: MemoryConfig, gemini: GeminiCo
 
 LLM_INSTRUCTIONS = """\
 These are a pet's memories, most recent first.
-Each line is: -<seconds ago>s|<action>|<thought before>><thought after>
+Each line is: -<seconds ago>s|<action>[: what came of it]|<thought before>><thought after>
 
 The pet has a poor memory. Rewrite the list the way the pet remembers it now:
 - the few most recent lines stay exactly as they are

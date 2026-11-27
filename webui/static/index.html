@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-Hant">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>pet</title>
+  <title>寵物</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -16,15 +16,28 @@
     <!-- The scene, back to front: the background picture (its strip of light grass is the
          floor), the pet and the food on the invisible grid over it, the foreground picture.
          Click the pet to cuddle it, click the floor to put food there. -->
+    <div class="stage">
     <section id="world">
       <div class="floor-zone"></div>
       <div id="grid">
         <div id="items"></div>
-        <div id="pet" title="Cuddle"></div>
+        <div id="pet" title="摸摸牠"></div>
       </div>
       <img class="scene-front" src="scene/foreground.svg" alt="">
     </section>
-    <p class="hint muted">Click the pet to cuddle it · click the grass to put food there <span id="error"></span></p>
+    <!-- before there is a pet: the player names it -->
+    <form id="naming" class="card" hidden>
+      <p>新朋友來了！要叫什麼名字呢？</p>
+      <input id="pet-name" type="text" autocomplete="off" required>
+      <button type="submit">歡迎回家！</button>
+    </form>
+    <!-- over the scene, outside it so the scene's grey-out doesn't reach the button -->
+    <div id="fallen" hidden>
+      <p><span id="fallen-name"></span> 生病倒下了</p>
+      <button id="restart" type="button">重新開始</button>
+    </div>
+    </div>
+    <p class="hint muted">點寵物可以摸摸牠 · 點草地可以放食物 <span id="error"></span></p>
   </main>
   <script type="module" src="app.js"></script>
 </body>

@@ -5,3 +5,7 @@ config.toml
 .venv/
 __pycache__/
 *.pyc
+
+# Background server (just start / just stop)
+.server.pid
+.server.log

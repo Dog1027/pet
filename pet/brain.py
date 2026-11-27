@@ -14,11 +14,23 @@ from .config import Config, GeminiConfig, OllamaConfig
 
 
 def build_prompt(thought: str, memory: Sequence[str] = ()) -> str:
-    """The whole prompt: the pet's current thought, then the memory of previous actions.
-    The action list and the reply format come from response_schema(), not the prompt.
+    """The whole prompt: the names of the actions the pet can do (no descriptions: what they do
+    it learns from its memory, where each action says what came of it), how it feels now, and
+    what it did lately. The names come in a new random order each time, so the first one
+    doesn't always win. The reply format comes from response_schema().
     memory: the lines from Memory.recall(), most recent first."""
+    names = llm_choices()
+    random.shuffle(names)
     mem = "\n".join(memory) if memory else "(empty)"
-    return f"Thought: {thought}\n\nMemory:\n{mem}"
+    return (
+        "You are a small pet rabbit. Pick what to do next, by how you feel now. Learn from what"
+        " you did lately: don't keep doing what didn't help.\n\n"
+        f"What you can do: {', '.join(names)}\n\n"
+        f"How you feel now: {thought}\n\n"
+        "What you did lately (most recent first; how long ago | what you did: what came of it"
+        " | how you felt before > after):\n"
+        f"{mem}"
+    )
 
 
 def response_schema() -> dict:
@@ -42,8 +54,8 @@ def parse(raw: str) -> str | None:
 
 class Brain(ABC):
     @abstractmethod
-    def decide(self, thought: str, memory: Sequence[str] = ()) -> str:
-        """Return the LLM's raw output string."""
+    def decide(self, prompt: str) -> str:
+        """Send the prompt (build_prompt) and return the LLM's raw output string."""
 
 
 class GeminiBrain(Brain):
@@ -65,7 +77,7 @@ class GeminiBrain(Brain):
         self.thinking_level = cfg.thinking_level
         self.last_model: str | None = None  # model that actually answered the last call
 
-    def decide(self, thought: str, memory: Sequence[str] = ()) -> str:
+    def decide(self, prompt: str) -> str:
         """Try the main model, then the fallbacks; switch only on busy / timeout, re-raise anything else."""
         error: Exception | None = None
         self.last_model = None
@@ -73,7 +85,7 @@ class GeminiBrain(Brain):
             try:
                 interaction = self.client.interactions.create(
                     model=model,
-                    input=build_prompt(thought, memory),
+                    input=prompt,
                     response_format={"type": "text", "mime_type": "application/json",
                                      "schema": response_schema()},
                     generation_config={"thinking_level": self.thinking_level},
@@ -116,10 +128,10 @@ class OllamaBrain(Brain):
         self.cfg = cfg
         self.last_model = cfg.model
 
-    def decide(self, thought: str, memory: Sequence[str] = ()) -> str:
+    def decide(self, prompt: str) -> str:
         prompt = (
             "<|message_system|><|content_text|>Thinking effort level: 0<|end_message|>"
-            f"<|message_user|><|content_text|>{build_prompt(thought, memory)}<|end_message|>"
+            f"<|message_user|><|content_text|>{prompt}<|end_message|>"
             "<|message_model|><|content_text|>"
         )
         body = {
@@ -144,7 +156,7 @@ class MockBrain(Brain):
 
     last_model = "mock"
 
-    def decide(self, thought: str, memory: Sequence[str] = ()) -> str:
+    def decide(self, prompt: str) -> str:
         return json.dumps({"action": random.choice(llm_choices())})
 
 

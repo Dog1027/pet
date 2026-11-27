@@ -1,7 +1,6 @@
 """Display layer. The engine (engine.py) calls these as things happen.
 A display implements its own Renderer (see webui/server.py)."""
 from abc import ABC, abstractmethod
-from typing import Sequence
 
 from .actions import Action
 from .interactions import Interaction
@@ -14,7 +13,7 @@ class Renderer(ABC):
     def show_thought(self, thought: str) -> None:
         """The pet starts thinking about its next action; this is what is on its mind."""
 
-    def show_prompt(self, thought: str, memory: Sequence[str]) -> None:
+    def show_prompt(self, prompt: str) -> None:
         """What is about to be sent to the LLM (debug displays only)."""
 
     def show_debug(self, model: str | None, raw: str) -> None:

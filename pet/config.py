@@ -25,7 +25,7 @@ class OllamaConfig:
 @dataclass
 class MemoryConfig:
     time_scale: float = 1.0   # timestamps shown to the LLM = real seconds since the action * this
-    forgetting: str = "chars" # forgetting method: chars / ebbinghaus / llm (see forgetting.py)
+    forgetting: str = "none"  # forgetting method: none / chars / ebbinghaus / llm (see forgetting.py)
     # chars
     fade_start: float = 0.5   # entries past this share of the memory start losing characters
     fade_max: float = 0.8     # share of characters deleted from the oldest entry

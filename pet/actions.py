@@ -39,7 +39,13 @@ then (optional): runs once when the action has finished (its duration is up, or 
 so), with the stats and world at that moment. Return the name of the next action, or None to let the LLM decide.
 
 llm (optional, default True): whether the LLM may pick it. llm=False actions only happen
-when another action's `then` picks them.
+when another action's `then` picks them. The LLM is told only the names of the actions, not
+what they do: it learns that from its memory (see result).
+
+result (optional): runs once when the action ends (also when interrupted), with the stats at
+its start, the stats and world now, and the owner interactions that happened meanwhile
+("feed", "cuddle"). Return a few words on what came of it ("found nothing"); they go into
+the pet's memory with the action, so the LLM can tell what works and what doesn't.
 
 pose and prop say how the action looks. Actions share a small set of them so the
 graphical display only needs a few drawings:
@@ -77,6 +83,8 @@ class Step:
 ActionFn = Callable[[PetState, World, Step], Effect]  # runs every step
 ThenFn = Callable[[PetState, World], str | None]      # runs at the end: next action, or None
 StopFn = Callable[[PetState, World], bool]            # runs every step: True = end it now
+# runs at the end: (stats at the start, state now, world, owner interactions meanwhile) -> words
+ResultFn = Callable[[dict, PetState, World, list], "str | None"]
 
 
 @dataclass(frozen=True)
@@ -90,6 +98,7 @@ class Action:
     then: ThenFn | None = None      # picks the next action, or None = the LLM picks
     stop_when: StopFn | None = None  # ends it early
     llm: bool = True                # whether the LLM may pick it
+    result: ResultFn | None = None  # what came of it, for the pet's memory
 
     def should_stop(self, state: PetState, world: World) -> bool:
         """Whether stop_when ends the action now."""
@@ -112,7 +121,7 @@ ACTIONS: dict[str, Action] = {}
 
 def action(name: str, label: str, *, pose: str, duration: float, prop: str | None = None,
            then: ThenFn | None = None, stop_when: StopFn | None = None,
-           llm: bool = True) -> Callable[[ActionFn], ActionFn]:
+           llm: bool = True, result: ResultFn | None = None) -> Callable[[ActionFn], ActionFn]:
     """Register an action."""
     if duration <= 0:
         raise ValueError(f"action {name}: duration must be greater than 0")
@@ -120,7 +129,7 @@ def action(name: str, label: str, *, pose: str, duration: float, prop: str | Non
     def register(fn: ActionFn) -> ActionFn:
         if name in ACTIONS:
             raise ValueError(f"action {name} is registered twice")
-        ACTIONS[name] = Action(name, label, pose, prop, duration, fn, then, stop_when, llm)
+        ACTIONS[name] = Action(name, label, pose, prop, duration, fn, then, stop_when, llm, result)
         return fn
     return register
 
@@ -179,8 +188,12 @@ def done_eating(state: PetState, world: World) -> bool:
     return world.here("food") is None or state.fullness >= 100  # nothing left, or full
 
 
+def ate(before: dict, state: PetState, world: World, owner: list) -> str:
+    return "ate (helped)" if state.fullness > before["fullness"] else "nothing to eat (didn't help)"
+
+
 @action("eat", "Eat", pose="sit", prop="bowl", duration=5, then=after_eating, stop_when=done_eating,
-        llm=False)
+        llm=False, result=ate)
 def eat(state: PetState, world: World, step: Step) -> Effect:
     """Eats the food at the pet's position, EAT_SPEED a second, until it's gone.
     The LLM can't pick it: the pet eats after scavenge has brought it to food."""
@@ -191,7 +204,11 @@ def eat(state: PetState, world: World, step: Step) -> Effect:
     return plus(living(state, step), {"fullness": eaten})
 
 
-@action("beg", "Beg", pose="sit", prop="question", duration=5)
+def begged(before: dict, state: PetState, world: World, owner: list) -> str:
+    return "the owner put food down (helped)" if "feed" in owner else "nobody came (didn't help)"
+
+
+@action("beg", "Beg", pose="sit", prop="question", duration=5, result=begged)
 def beg(state: PetState, world: World, step: Step) -> Effect:
     return living(state, step)  # nothing by itself; shows the owner it wants food
 
@@ -204,8 +221,12 @@ def reached_food(state: PetState, world: World) -> bool:
     return world.here("food") is not None
 
 
+def scavenged(before: dict, state: PetState, world: World, owner: list) -> str:
+    return "found food (helped)" if world.here("food") is not None else "found nothing (didn't help)"
+
+
 @action("scavenge", "Scavenge", pose="walk", prop="question", duration=5, then=after_scavenging,
-        stop_when=reached_food)
+        stop_when=reached_food, result=scavenged)
 def scavenge(state: PetState, world: World, step: Step) -> Effect:
     """Heads for the nearest food, up to MOVES cells over the action; ends on reaching it.
     Stays put if there is no food: only the owner's food fills the pet (through eat)."""
@@ -245,7 +266,11 @@ def cuddled(state: PetState, world: World, step: Step) -> Effect:
     return plus(living(state, step), per_second({"social": +6, "energy": -1}, step))
 
 
-@action("seek_attention", "Seek attention", pose="sit", prop="heart", duration=5)
+def sought(before: dict, state: PetState, world: World, owner: list) -> str:
+    return "the owner cuddled you (helped)" if "cuddle" in owner else "nobody came (didn't help)"
+
+
+@action("seek_attention", "Seek attention", pose="sit", prop="heart", duration=5, result=sought)
 def seek_attention(state: PetState, world: World, step: Step) -> Effect:
     return living(state, step)  # nothing by itself; the owner's Cuddle is what helps
 

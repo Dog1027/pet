@@ -8,6 +8,10 @@ The core doesn't know about the web: this module plugs in through the Renderer i
 HTTP API (JSON):
     GET  /api/state         everything the page shows (Engine.snapshot() + the log)
     GET  /api/sprites       the pet's PNG sprites found in static/sprites/ (see sprites.py)
+    POST /api/start         {"name": "Mochi"} -> a brand-new pet with that name; until then
+                            /api/state is just {"named": false, ...} and there is no pet
+    POST /api/restart       put the pet away (the page offers it once the pet has fallen ill);
+                            the next one is named with /api/start
     POST /api/interact      {"key": "c"}  -> run an owner interaction
                             {"key": "f", "x": 3, "y": 4}  -> feed: put food at (3, 4)
 Files under webui/static/ are served at /. The pet's PNGs go in webui/static/sprites/
@@ -23,7 +27,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from pet import config
-from pet.brain import build_prompt, make_brain
+from pet.brain import make_brain
 from pet.engine import Engine
 from pet.forgetting import METHODS as FORGETTING_METHODS
 from pet.renderer import Renderer, changes
@@ -54,9 +58,9 @@ class WebRenderer(Renderer):
     def show_thought(self, thought):
         self._add("thought", f"thought: {thought} ... thinking")
 
-    def show_prompt(self, thought, memory):
+    def show_prompt(self, prompt):
         if self.debug:
-            self._add("debug", "prompt: " + build_prompt(thought, memory).replace("\n", " / "))
+            self._add("debug", "prompt: " + prompt.replace("\n", " / "))
 
     def show_debug(self, model, raw):
         if self.debug:
@@ -80,8 +84,42 @@ class WebRenderer(Renderer):
         self._add("note", text)
 
 
+NAME_MAX = 20  # characters
+
+
+class Game:
+    """The pet being shown. There is none until the player names one (start); restart puts
+    the current one away and waits for the next name."""
+
+    def __init__(self, make, suggested_name: str):
+        self.make = make  # (name) -> (Engine, WebRenderer)
+        self.suggested_name = suggested_name  # offered on the naming card
+        self.lock = threading.Lock()
+        self.engine, self.ui = None, None
+
+    def start(self, name: str) -> None:
+        """A brand-new pet called `name`; time starts for it now."""
+        name = " ".join(name.split())[:NAME_MAX]
+        if not name:
+            raise ValueError("請幫寵物取個名字")
+        with self.lock:
+            self._stop()
+            self.engine, self.ui = self.make(name)
+            threading.Thread(target=run_clock, args=(self.engine,), daemon=True).start()
+
+    def restart(self) -> None:
+        """Put the current pet away; the page asks for the next one's name."""
+        with self.lock:
+            self._stop()
+            self.engine, self.ui = None, None
+
+    def _stop(self) -> None:
+        if self.engine is not None:
+            self.engine.alive = False  # ends its run_clock thread
+
+
 def run_clock(engine: Engine) -> None:
-    """Background thread: advance time once a second."""
+    """Background thread: advance time once a second (until the pet falls ill or is replaced)."""
     next_step = time.monotonic()
     while engine.alive:
         engine.step()
@@ -90,9 +128,11 @@ def run_clock(engine: Engine) -> None:
         next_step = max(next_step, time.monotonic())  # a slow step doesn't cause a burst
 
 
-def make_handler(engine: Engine, ui: WebRenderer):
+def make_handler(game: Game):
     def state() -> dict:
-        return {**engine.snapshot(), "log": ui.entries()}
+        if game.engine is None:  # no pet yet: the page shows the naming card
+            return {"named": False, "suggested_name": game.suggested_name, "name_max": NAME_MAX}
+        return {"named": True, **game.engine.snapshot(), "log": game.ui.entries()}
 
     class Handler(SimpleHTTPRequestHandler):
         def __init__(self, *args, **kwargs):
@@ -131,15 +171,26 @@ def make_handler(engine: Engine, ui: WebRenderer):
                 body = json.loads(self.rfile.read(length) or b"{}")
             except ValueError:
                 return self._json({"error": "invalid JSON"}, HTTPStatus.BAD_REQUEST)
+            if self.path == "/api/restart":
+                game.restart()
+                return self._json(state())
+            if self.path == "/api/start":
+                try:
+                    game.start(str(body.get("name", "")))
+                except ValueError as e:
+                    return self._json({"error": str(e)}, HTTPStatus.BAD_REQUEST)
+                return self._json(state())
+            if game.engine is None:
+                return self._json({"error": "請先幫寵物取名字"}, HTTPStatus.CONFLICT)
             if self.path != "/api/interact":
                 return self._json({"error": "not found"}, HTTPStatus.NOT_FOUND)
             options = {k: body[k] for k in ("x", "y") if k in body}  # feed: where to put the food
             try:
-                ok = engine.interact(str(body.get("key", "")), **options)
+                ok = game.engine.interact(str(body.get("key", "")), **options)
             except (TypeError, ValueError) as e:
                 return self._json({"error": str(e)}, HTTPStatus.BAD_REQUEST)
             if not ok:
-                return self._json({"error": "unknown interaction"}, HTTPStatus.BAD_REQUEST)
+                return self._json({"error": "現在不能這麼做"}, HTTPStatus.BAD_REQUEST)
             self._json(state())
 
     return Handler
@@ -147,7 +198,7 @@ def make_handler(engine: Engine, ui: WebRenderer):
 
 def main() -> None:
     p = argparse.ArgumentParser(description="Web UI for the pet")
-    p.add_argument("--name", default="Mochi")
+    p.add_argument("--name", default="麻糬", help="the name offered when the player names a new pet")
     p.add_argument("--mock", action="store_true", help="use a fake brain instead of calling the API")
     p.add_argument("--config", default=str(config.DEFAULT_PATH), help="path to the config file")
     p.add_argument("--forgetting", choices=sorted(FORGETTING_METHODS),
@@ -166,13 +217,13 @@ def main() -> None:
     except ValueError as e:
         p.error(str(e))
 
-    ui = WebRenderer(args.debug)
-    engine = Engine(args.name, cfg, brain, ui)
-    threading.Thread(target=run_clock, args=(engine,), daemon=True).start()
+    def make(name: str):
+        ui = WebRenderer(args.debug)
+        return Engine(name, cfg, brain, ui), ui
 
-    server = ThreadingHTTPServer((args.host, args.port), make_handler(engine, ui))
+    server = ThreadingHTTPServer((args.host, args.port), make_handler(Game(make, args.name)))
     shown = "localhost" if args.host in ("0.0.0.0", "::") else args.host
-    print(f"{args.name} is at http://{shown}:{args.port}  "
+    print(f"the pet is at http://{shown}:{args.port}  "
           f"(brain={'mock' if args.mock else cfg.brain}; Ctrl+C to quit)")
     try:
         server.serve_forever()

@@ -28,10 +28,11 @@ timeout = 20
 time_scale = 1.0
 
 # How older memories are forgotten (--forgetting on the command line overrides this):
+#   none        remember everything as it was (the default)
 #   chars       older entries lose a growing share of their characters
 #   ebbinghaus  retention decays with time: clear -> vague -> dropped
 #   llm         a model rewrites the memory as the pet remembers it (one extra API call per decision)
-forgetting = "chars"
+forgetting = "none"
 
 # chars: entries in the first fade_start share of the memory (the most recent ones) stay intact;
 # after that the deleted share grows linearly, reaching fade_max at the oldest entry.
