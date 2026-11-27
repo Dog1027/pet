@@ -22,8 +22,9 @@ class Reflex:
 
 
 REFLEXES: list[Reflex] = [
-    Reflex("health", below=20, action="rest"),
+    # hunger first: resting can't heal a starving pet (actions.py), so it has to find food
     Reflex("fullness", below=20, action="scavenge"),
+    Reflex("health", below=20, action="rest"),
     Reflex("energy", below=15, action="sleep"),
 ]
 

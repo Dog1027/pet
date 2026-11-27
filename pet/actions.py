@@ -17,7 +17,7 @@ The LLM's list of choices picks it up automatically.
     def walk(state: PetState, world: World, step: Step) -> Effect:
         for _ in range(step.count(10)):                  # 10 cells over the action
             world.move_to(world.x + 1, world.y)
-        return plus(living(step), per_second({"health": +0.5, "energy": -1}, step))
+        return plus(living(state, step), per_second({"health": +0.5, "energy": -1}, step))
 
 The function runs every step while the action lasts (about once a second). `step` says how much
 time that step covers (step.seconds) and how far along the action is; step.count(n) spreads n
@@ -26,7 +26,8 @@ this step (eat some of the food, move the pet, ...) and returns the stat changes
 values are clamped to 0-100.
 It can contain any logic: look at the world and the stats and do something different.
 Nothing else changes the stats as time passes, so include the cost of living
-(LIVING, below): an action that does nothing still makes the pet a little hungrier.
+(living(), below): an action that does nothing still makes the pet a little hungrier, and a
+need left at 0 hurts its health.
 
 duration: the most seconds the action lasts.
 
@@ -146,15 +147,24 @@ def plus(*effects: Effect) -> Effect:
 # ---------------------------------------------------------------- actions
 
 LIVING = {"fullness": -1.2, "energy": -0.8, "social": -0.8}  # per second, whatever the pet does
+NEEDS = ("fullness", "energy", "social")
+NEGLECT = 1.0    # health lost per second for each need at 0
+REST_HEAL = 3.0  # health rest gives back per second, only while no need is at 0
 EAT_SPEED = 6.0  # food eaten per second; each unit of food is one point of fullness
 
 
 MOVES = 8         # cells idle (at random) and scavenge (toward food) move over the action
 
 
-def living(step: Step) -> Effect:
-    """The cost of living for this step; part of every action."""
-    return per_second(LIVING, step)
+def neglected(state: PetState) -> list[str]:
+    """The needs that are at 0."""
+    return [n for n in NEEDS if getattr(state, n) <= 0]
+
+
+def living(state: PetState, step: Step) -> Effect:
+    """The cost of living for this step; part of every action.
+    Each need at 0 also costs NEGLECT health a second: left alone long enough, the pet falls ill."""
+    return per_second({**LIVING, "health": -NEGLECT * len(neglected(state))}, step)
 
 
 # ---- when hungry
@@ -178,12 +188,12 @@ def eat(state: PetState, world: World, step: Step) -> Effect:
     eaten = 0.0
     if food is not None:
         eaten = world.take(food, EAT_SPEED * step.seconds)
-    return plus(living(step), {"fullness": eaten})
+    return plus(living(state, step), {"fullness": eaten})
 
 
 @action("beg", "Beg", pose="sit", prop="question", duration=5)
 def beg(state: PetState, world: World, step: Step) -> Effect:
-    return living(step)  # nothing by itself; shows the owner it wants food
+    return living(state, step)  # nothing by itself; shows the owner it wants food
 
 
 def after_scavenging(state: PetState, world: World) -> str | None:
@@ -198,13 +208,13 @@ def reached_food(state: PetState, world: World) -> bool:
         stop_when=reached_food)
 def scavenge(state: PetState, world: World, step: Step) -> Effect:
     """Heads for the nearest food, up to MOVES cells over the action; ends on reaching it.
-    Stays put if there is no food. Also nibbles whatever it finds on the way, which isn't good for it."""
+    Stays put if there is no food: only the owner's food fills the pet (through eat)."""
     for _ in range(step.count(MOVES)):
         food = world.nearest("food")
         if food is None:
             break
         world.step_toward(food.x, food.y)
-    return plus(living(step), per_second({"fullness": +3, "health": -2}, step))
+    return living(state, step)
 
 
 # ---- when tired
@@ -215,12 +225,15 @@ def after_sleeping(state: PetState, world: World) -> str | None:
 
 @action("sleep", "Sleep", pose="lie", prop="zzz", duration=10, then=after_sleeping)
 def sleep(state: PetState, world: World, step: Step) -> Effect:
-    return plus(living(step), per_second({"energy": +9, "fullness": -2}, step))
+    return plus(living(state, step), per_second({"energy": +9, "fullness": -2}, step))
 
 
 @action("rest", "Rest", pose="lie", duration=10)
 def rest(state: PetState, world: World, step: Step) -> Effect:
-    return plus(living(step), per_second({"energy": +3, "health": +3}, step))
+    """Recovers some energy, and health too, but only while no need is at 0: resting can't make
+    up for starving or being left alone."""
+    heal = 0.0 if neglected(state) else REST_HEAL
+    return plus(living(state, step), per_second({"energy": +3, "health": heal}, step))
 
 
 # ---- when lonely
@@ -229,17 +242,17 @@ def rest(state: PetState, world: World, step: Step) -> Effect:
 def cuddled(state: PetState, world: World, step: Step) -> Effect:
     """The owner's Cuddle (interactions.py) starts this, whatever the pet was doing.
     It helps loneliness but tires the pet out."""
-    return plus(living(step), per_second({"social": +6, "energy": -1}, step))
+    return plus(living(state, step), per_second({"social": +6, "energy": -1}, step))
 
 
 @action("seek_attention", "Seek attention", pose="sit", prop="heart", duration=5)
 def seek_attention(state: PetState, world: World, step: Step) -> Effect:
-    return living(step)  # nothing by itself; the owner's Cuddle is what helps
+    return living(state, step)  # nothing by itself; the owner's Cuddle is what helps
 
 
 @action("play_alone", "Play alone", pose="walk", prop="heart", duration=10)
 def play_alone(state: PetState, world: World, step: Step) -> Effect:
-    return plus(living(step), per_second({"social": +2, "energy": -2}, step))
+    return plus(living(state, step), per_second({"social": +2, "energy": -2}, step))
 
 
 # ---- when content
@@ -249,4 +262,4 @@ def idle(state: PetState, world: World, step: Step) -> Effect:
     """Wanders: MOVES random cells over the action."""
     for _ in range(step.count(MOVES)):
         world.random_step()
-    return living(step)
+    return living(state, step)
