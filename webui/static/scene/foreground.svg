@@ -1,21 +1,22 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900">
   <!-- In front of the pet. Clicks pass through it (pointer-events: none). It may cover the
-       front edge of the floor (the grid ends at y 797) a little. -->
+       front edge of the floor (the grid ends at y 797) a little.
+       Same style as background.svg: pastel fills inside the pet's dark brown line. -->
   <defs>
-    <g id="bush">
+    <g id="bush" stroke="#583329" stroke-linejoin="round" stroke-linecap="round">
       <path d="M-110 40 Q-130 -10 -80 -24 Q-70 -70 -20 -60 Q10 -96 52 -66 Q100 -78 104 -28 Q140 -10 118 40 Z"
-            fill="#b6dcb4" stroke="#8cbf8f" stroke-width="4" stroke-linejoin="round"/>
-      <path d="M-60 -20 Q-40 -40 -14 -32" fill="none" stroke="#d2ecd0" stroke-width="7" stroke-linecap="round"/>
+            fill="#b3dbb0" stroke-width="3"/>
+      <path d="M-60 -24 Q-40 -44 -14 -36" fill="none" stroke="#d4eecf" stroke-width="7"/>
     </g>
     <g id="tuft">
       <path d="M-26 0 Q-24 -24 -12 -40 Q-10 -20 -6 0 Z M-8 0 Q-4 -34 6 -52 Q8 -26 10 0 Z M8 0 Q14 -26 28 -36 Q22 -16 24 0 Z"
-            fill="#a9d6a2" stroke="#86bb85" stroke-width="3" stroke-linejoin="round"/>
+            fill="#a9d6a2" stroke="#583329" stroke-width="2.6" stroke-linejoin="round"/>
     </g>
-    <g id="flower">
-      <g fill="#ffd3dd" stroke="#e39aab" stroke-width="2">
+    <g id="flower" stroke="#583329" stroke-width="2.2" stroke-linejoin="round">
+      <g fill="#ffd3dd">
         <circle cx="0" cy="-8" r="7"/><circle cx="8" cy="0" r="7"/><circle cx="0" cy="8" r="7"/><circle cx="-8" cy="0" r="7"/>
       </g>
-      <circle r="5" fill="#ffd77a" stroke="#d9a94a" stroke-width="1.6"/>
+      <circle r="4.6" fill="#ffd77a"/>
     </g>
   </defs>
 

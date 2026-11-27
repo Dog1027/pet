@@ -3,7 +3,7 @@
 The core doesn't know about the web: this module plugs in through the Renderer interface
 (WebRenderer collects the events for the page) and reads Engine.snapshot().
 
-    uv run -m webui              # then open http://localhost:8000 (or this machine's IP from another device)
+    uv run -m webui              # then open http://localhost:5000 (or this machine's IP from another device)
 
 HTTP API (JSON):
     GET  /api/state         everything the page shows (Engine.snapshot() + the log)
@@ -206,7 +206,7 @@ def main() -> None:
     p.add_argument("--debug", action="store_true", help="also show the prompts sent to the model and its raw replies in the log")
     p.add_argument("--host", default="0.0.0.0",
                    help="address to listen on (default 0.0.0.0: reachable from other devices; 127.0.0.1 = this machine only)")
-    p.add_argument("--port", type=int, default=8000)
+    p.add_argument("--port", type=int, default=5000)
     args = p.parse_args()
 
     cfg = config.load(args.config)

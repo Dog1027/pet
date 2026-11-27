@@ -30,7 +30,7 @@
 // mint, a brown outline on coloured icons.
 
 const INK = "#111";      // eyes and mouth: plain black
-const LINE = "#6e4c3d";  // icon outlines
+const LINE = "#583329";  // outlines of the icons: the pet's own line colour (and the scene's)
 
 // One eye of radius r centred on (x, y) (faces.json gives where and how big)
 function eyeSvg(kind, x, y, r) {
@@ -84,48 +84,52 @@ const FACE_DEFS = `<defs><radialGradient id="pet-blush">
   <stop offset=".6" stop-color="#ffb4c3" stop-opacity=".55"/>
   <stop offset="1" stop-color="#ffc1cd" stop-opacity="0"/></radialGradient></defs>`;
 
-// Icons drawn around (0, 0), about 12 units across. Coloured shapes get a brown outline and
-// a pale rim, so they read on the dark and the light floor alike.
-const rim = (d, fill) =>
-  `<path d="${d}" fill="${fill}" stroke="#fffaf2" stroke-width="3.2" stroke-linejoin="round" paint-order="stroke"/>`
-  + `<path d="${d}" fill="${fill}" stroke="${LINE}" stroke-width="1.3" stroke-linejoin="round"/>`;
+// Icons drawn around (0, 0), about 12 units across, in the pet's style: pastel fills inside
+// the pet's dark brown outline (LINE), about as thick as the pet's own once drawn.
+const OUT = 0.75;  // outline width, in icon units
+const rim = (d, fill, w = OUT) =>
+  `<path d="${d}" fill="${fill}" stroke="${LINE}" stroke-width="${w}" stroke-linejoin="round"/>`;
+// A coloured line with the outline around it
 const stroke = (d, color, w = 2.2) =>
-  `<path d="${d}" fill="none" stroke="#fffaf2" stroke-width="${w + 2}" stroke-linecap="round" stroke-linejoin="round"/>`
-  + `<path d="${d}" fill="none" stroke="${LINE}" stroke-width="${w + 1}" stroke-linecap="round" stroke-linejoin="round"/>`
-  + `<path d="${d}" fill="none" stroke="${color}" stroke-width="${w - 0.4}" stroke-linecap="round" stroke-linejoin="round"/>`;
+  `<path d="${d}" fill="none" stroke="${LINE}" stroke-width="${w + OUT * 2}" stroke-linecap="round" stroke-linejoin="round"/>`
+  + `<path d="${d}" fill="none" stroke="${color}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>`;
+// A soft highlight inside a shape, like the light on the pet's body
+const shine = (d, w = 1.1) =>
+  `<path d="${d}" fill="none" stroke="#fff" stroke-width="${w}" stroke-linecap="round" opacity=".7"/>`;
 const ICONS = {
-  dots: () => [-4.5, 0, 4.5].map((x) => `<circle cx="${x}" cy="0" r="1.9" fill="#fffaf2" stroke="${LINE}" stroke-width="1.1"/>`).join(""),
-  question: () => stroke("M-3 -3.2 Q-3 -6.5 0.4 -6.5 Q3.8 -6.5 3.8 -3.4 Q3.8 -1.2 0.6 0.2 L0.6 1.8", "#f4a24a")
-    + `<circle cx="0.6" cy="5.2" r="1.6" fill="#f4a24a" stroke="${LINE}" stroke-width="1"/>`,
-  heart: () => rim("M0 5.5 C-7 1 -6.5 -5.5 -2.6 -5.5 C-1.2 -5.5 -0.3 -4.6 0 -3.6 C0.3 -4.6 1.2 -5.5 2.6 -5.5 C6.5 -5.5 7 1 0 5.5 Z", "#f59ab0"),
-  z: () => stroke("M-3.2 -3.4 H3.2 L-3.2 3.4 H3.2", "#c9b8f2", 2),
+  dots: () => [-4.5, 0, 4.5].map((x) => `<circle cx="${x}" cy="0" r="1.9" fill="#fffaf2" stroke="${LINE}" stroke-width="${OUT}"/>`).join(""),
+  question: () => stroke("M-3 -3.2 Q-3 -6.5 0.4 -6.5 Q3.8 -6.5 3.8 -3.4 Q3.8 -1.2 0.6 0.2 L0.6 1.8", "#f8b46a", 2)
+    + rim("M0.6 3.6 a1.6 1.6 0 1 1 0 3.2 a1.6 1.6 0 1 1 0 -3.2 Z", "#f8b46a"),
+  heart: () => rim("M0 5.5 C-7 1 -6.5 -5.5 -2.6 -5.5 C-1.2 -5.5 -0.3 -4.6 0 -3.6 C0.3 -4.6 1.2 -5.5 2.6 -5.5 C6.5 -5.5 7 1 0 5.5 Z", "#f7a3b7")
+    + shine("M-3.6 -2.6 Q-3.4 -4.2 -2 -4.3"),
+  z: () => stroke("M-3.2 -3.4 H3.2 L-3.2 3.4 H3.2", "#cdbdf4", 1.8),
   note: () => rim("M-2.6 4.8 a2.6 2.1 0 1 1 0.1 0 Z", "#a8dcc0")
-    + stroke("M-0.2 4.3 V-5.2 Q2.8 -4.2 3.8 -1.6", "#a8dcc0", 1.6),
+    + stroke("M-0.2 4.3 V-5.2 Q2.8 -4.2 3.8 -1.6", "#a8dcc0", 1.5),
   carrot: () => carrotSvg(),
-  sweat: () => rim("M0 -6 Q4.6 0 4.6 2.4 A4.6 4.6 0 0 1 -4.6 2.4 Q-4.6 0 0 -6 Z", "#9fd3f5")
-    + `<ellipse cx="-1.6" cy="2" rx="0.9" ry="1.5" fill="#fff" opacity=".85"/>`,
-  tear: () => rim("M0 -5 Q3.4 0 3.4 2 A3.4 3.4 0 0 1 -3.4 2 Q-3.4 0 0 -5 Z", "#7fb6ee")
-    + rim("M6 0 Q8 3 8 4.2 A2 2 0 0 1 4 4.2 Q4 3 6 0 Z", "#7fb6ee"),
+  sweat: () => rim("M0 -6 Q4.6 0 4.6 2.4 A4.6 4.6 0 0 1 -4.6 2.4 Q-4.6 0 0 -6 Z", "#a9daf6")
+    + shine("M-2.2 0.6 Q-2.4 2.6 -1 3.6"),
+  tear: () => rim("M0 -5 Q3.4 0 3.4 2 A3.4 3.4 0 0 1 -3.4 2 Q-3.4 0 0 -5 Z", "#8cc0f0")
+    + rim("M6 0 Q8 3 8 4.2 A2 2 0 0 1 4 4.2 Q4 3 6 0 Z", "#8cc0f0"),
   leaf: () => rim("M-5 5 Q-6 -3 1 -6.5 Q6 -8 6.5 -6.5 Q7 0 1 4 Q-2 6 -5 5 Z", "#a8dcc0")
-    + `<path d="M-4.2 4.2 Q0 -1 5 -5.6" fill="none" stroke="${LINE}" stroke-width="0.9" stroke-linecap="round"/>`
-    + `<path d="M5.5 2.5 L6.4 4.6 L8.5 5.5 L6.4 6.4 L5.5 8.5 L4.6 6.4 L2.5 5.5 L4.6 4.6 Z" fill="#ffe08a" stroke="${LINE}" stroke-width="0.7" stroke-linejoin="round"/>`,
-  swirl: () => stroke("M0.4 0.3 A1.2 1.2 0 1 1 -1.4 -1 A3 3 0 1 1 3 2.2 A5 5 0 1 1 -5.2 -3", "#b9a3e3", 1.8),
+    + `<path d="M-4.2 4.2 Q0 -1 5 -5.6" fill="none" stroke="${LINE}" stroke-width="${OUT * 0.8}" stroke-linecap="round"/>`
+    + rim("M5.5 2.5 L6.4 4.6 L8.5 5.5 L6.4 6.4 L5.5 8.5 L4.6 6.4 L2.5 5.5 L4.6 4.6 Z", "#ffe08a", OUT * 0.7),
+  swirl: () => stroke("M0.4 0.3 A1.2 1.2 0 1 1 -1.4 -1 A3 3 0 1 1 3 2.2 A5 5 0 1 1 -5.2 -3", "#c2aeea", 1.6),
 };
 
 // A plump carrot lying on its side, leaves at the top right, tip at the bottom left (the
-// line CARROT_TOP -> CARROT_TIP below, which the bites follow). Warm orange with a darker
-// orange outline, a highlight and a few ridges; three round mint leaves.
+// line CARROT_TOP -> CARROT_TIP below, which the bites follow). Warm orange inside the pet's
+// outline, with a highlight and a few ridges; three round mint leaves.
 function carrotSvg() {
+  const w = 0.62;  // the item is drawn larger than the symbols: a thinner line looks the same
   const leaf = (x, y, rot, rx = 1.9, ry = 3.3) =>
     `<ellipse cx="${x}" cy="${y}" rx="${rx}" ry="${ry}" transform="rotate(${rot} ${x} ${y})"
-      fill="#a9dea0" stroke="#5f9e62" stroke-width="0.9"/>`;
+      fill="#a9dea0" stroke="${LINE}" stroke-width="${w}"/>`;
   const body = "M-6 6.9 Q-6.9 6.1 -5.8 4.1 L0.2 -3.3 Q2.4 -6 5 -4.3 Q7.2 -2.6 5.2 -0.3 L-3.6 6.1 Q-5 7.4 -6 6.9 Z";
   return `<g stroke-linejoin="round" stroke-linecap="round">`
-    + `<path d="${body}" fill="none" stroke="#fffaf2" stroke-width="3.2"/>`   // pale rim, for the dark floor
     + leaf(3.2, -6.6, -28) + leaf(6.6, -6.4, 40) + leaf(5.3, -7.6, 8, 1.7, 3.6)
-    + `<path d="${body}" fill="#f7983a" stroke="#c4621c" stroke-width="1.1"/>`
-    + `<path d="M-4.4 4.4 L0.9 -2.1 Q2.3 -3.9 4 -3.3" fill="none" stroke="#ffc888" stroke-width="1.4" opacity=".9"/>`
-    + `<path d="M0.4 0.4 l1.5 1.1 M-1.6 2.6 l1.3 1 M2.6 -1.8 l1.2 0.9" fill="none" stroke="#c4621c" stroke-width="0.8"/>`
+    + `<path d="${body}" fill="#f9a04a" stroke="${LINE}" stroke-width="${w}"/>`
+    + `<path d="M-4.4 4.4 L0.9 -2.1 Q2.3 -3.9 4 -3.3" fill="none" stroke="#ffd2a0" stroke-width="1.2" opacity=".9"/>`
+    + `<path d="M0.4 0.4 l1.5 1.1 M-1.6 2.6 l1.3 1 M2.6 -1.8 l1.2 0.9" fill="none" stroke="${LINE}" stroke-width="${w * 0.75}"/>`
     + `</g>`;
 }
 
